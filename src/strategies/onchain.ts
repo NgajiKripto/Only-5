@@ -168,29 +168,75 @@ export class OnchainStrategy extends BaseStrategy {
       // Record pre-trade balance for actual P&L calculation
       const balanceBefore = balance;
 
-      // Execute the forward swap
+      // Execute the forward swap (leg 1: A -> B)
       const tradeAmount = Math.floor(
         (pair.inputMint === SOL_MINT ? balance * 0.1 : balance * 0.5) * 1e9
       );
 
-      const quote = await getQuote(
+      const forwardQuote = await getQuote(
         pair.inputMint,
         pair.outputMint,
         tradeAmount,
         this.slippageBps
       );
 
-      const swapTx = await executeSwap(
-        quote,
+      const forwardSwapTx = await executeSwap(
+        forwardQuote,
         this.wallet.publicKey.toBase58()
       );
 
-      // Sign and submit the transaction to the Solana network
-      const signature = await signAndSendSwap(
-        swapTx,
-        this.wallet.getKeypair(),
-        this.wallet.getConnection()
+      // Sign and submit the forward transaction using wallet (no keypair exposure)
+      const forwardSignature = await signAndSendSwap(
+        forwardSwapTx,
+        this.wallet
       );
+
+      this.logger.info(`Forward leg (A->B) executed`, { signature: forwardSignature });
+
+      // Execute the reverse swap (leg 2: B -> A)
+      let reverseSignature: string | null = null;
+      let secondLegFailed = false;
+
+      try {
+        const reverseQuote = await getQuote(
+          pair.outputMint,
+          pair.inputMint,
+          parseInt(forwardQuote.outAmount),
+          this.slippageBps
+        );
+
+        const reverseSwapTx = await executeSwap(
+          reverseQuote,
+          this.wallet.publicKey.toBase58()
+        );
+
+        reverseSignature = await signAndSendSwap(
+          reverseSwapTx,
+          this.wallet
+        );
+
+        this.logger.info(`Reverse leg (B->A) executed`, { signature: reverseSignature });
+      } catch (error) {
+        secondLegFailed = true;
+        this.logger.error(`Second leg (B->A) failed - intermediate token held`, {
+          error: (error as Error).message,
+          pair: pair.label,
+        });
+
+        // Flag the intermediate position for manual review
+        this.memory.remember(
+          "stuck_position",
+          JSON.stringify({
+            strategy: this.name,
+            pair: pair.label,
+            intermediateToken: pair.outputMint,
+            forwardSignature,
+            error: (error as Error).message,
+            timestamp: Date.now(),
+            requiresManualReview: true,
+          })
+        );
+      }
 
       // Check post-trade balance to determine actual P&L
       const balanceAfter = await this.wallet.getBalance();
@@ -205,16 +251,27 @@ export class OnchainStrategy extends BaseStrategy {
           amount: tradeAmount,
           expectedProfit: opportunity.expectedReward,
           actualProfitLoss,
-          signature,
+          forwardSignature,
+          reverseSignature,
+          roundTripComplete: !secondLegFailed,
           timestamp: Date.now(),
         })
       );
 
+      if (secondLegFailed) {
+        return {
+          success: false,
+          txHash: forwardSignature,
+          profitLoss: actualProfitLoss,
+          notes: `Forward leg executed but reverse leg failed. Intermediate token (${pair.outputMint}) held - flagged for manual review.`,
+        };
+      }
+
       return {
         success: true,
-        txHash: signature,
+        txHash: reverseSignature ?? forwardSignature,
         profitLoss: actualProfitLoss,
-        notes: `Executed ${pair.label} swap. Expected: ${opportunity.expectedReward.toFixed(6)} SOL, Actual P&L: ${actualProfitLoss.toFixed(6)} SOL`,
+        notes: `Executed full round-trip ${pair.label} arbitrage. Expected: ${opportunity.expectedReward.toFixed(6)} SOL, Actual P&L: ${actualProfitLoss.toFixed(6)} SOL`,
       };
     } catch (error) {
       this.logger.error("Onchain execution failed", {

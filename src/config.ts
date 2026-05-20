@@ -1,6 +1,8 @@
 import dotenv from "dotenv";
 import { z } from "zod";
 import { randomUUID } from "crypto";
+import { writeFileSync, mkdirSync } from "fs";
+import { dirname } from "path";
 
 dotenv.config();
 
@@ -41,10 +43,24 @@ export const config: Config = configSchema.parse({
 });
 
 // If no owner chat ID and no passphrase configured, use the generated default
-// and log it so the operator can use it for first-time authorization
+// and write it to a secure file so the operator can retrieve it.
+// Check data/auth-passphrase.txt to get the one-time passphrase.
 export const authPassphrase: string = config.TELEGRAM_AUTH_PASSPHRASE ?? defaultPassphrase;
 if (!config.TELEGRAM_OWNER_CHAT_ID && !config.TELEGRAM_AUTH_PASSPHRASE) {
-  console.log(`[AUTH] No TELEGRAM_OWNER_CHAT_ID or TELEGRAM_AUTH_PASSPHRASE set.`);
-  console.log(`[AUTH] Generated one-time passphrase: ${authPassphrase}`);
-  console.log(`[AUTH] Send this passphrase to the bot to authorize yourself.`);
+  const passphraseFile = "data/auth-passphrase.txt";
+  try {
+    mkdirSync(dirname(passphraseFile), { recursive: true });
+    writeFileSync(
+      passphraseFile,
+      `# One-time auth passphrase for Telegram bot authorization\n# Send this passphrase to the bot to authorize yourself.\n# This file is restricted to owner-only access (0600).\n${authPassphrase}\n`,
+      { mode: 0o600 }
+    );
+    console.log(`[AUTH] No TELEGRAM_OWNER_CHAT_ID or TELEGRAM_AUTH_PASSPHRASE set.`);
+    console.log(`[AUTH] Passphrase written to ${passphraseFile} (mode 0600).`);
+    console.log(`[AUTH] Read that file to get your one-time authorization passphrase.`);
+  } catch {
+    // Fallback: if file write fails, still do not log the passphrase itself
+    console.log(`[AUTH] No TELEGRAM_OWNER_CHAT_ID or TELEGRAM_AUTH_PASSPHRASE set.`);
+    console.log(`[AUTH] Could not write passphrase file. Set TELEGRAM_AUTH_PASSPHRASE in .env.`);
+  }
 }

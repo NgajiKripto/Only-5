@@ -29,8 +29,8 @@ describe("OnchainStrategy", () => {
   let mockWallet: {
     getBalance: ReturnType<typeof vi.fn>;
     publicKey: { toBase58: () => string };
-    getKeypair: ReturnType<typeof vi.fn>;
     getConnection: ReturnType<typeof vi.fn>;
+    signAndSendVersionedTransaction: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -50,8 +50,8 @@ describe("OnchainStrategy", () => {
     mockWallet = {
       getBalance: vi.fn().mockResolvedValue(1.0),
       publicKey: { toBase58: () => "TestPublicKey123" },
-      getKeypair: vi.fn().mockReturnValue({}),
       getConnection: vi.fn().mockReturnValue({}),
+      signAndSendVersionedTransaction: vi.fn().mockResolvedValue("mockSignature"),
     };
 
     const deps: StrategyDependencies = {
@@ -220,6 +220,7 @@ describe("OnchainStrategy", () => {
     });
 
     it("should execute trade when conditions are met", async () => {
+      // Forward quote (leg 1)
       mockGetQuote.mockResolvedValueOnce({
         inputMint: "So11111111111111111111111111111111111111112",
         outputMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
@@ -231,14 +232,34 @@ describe("OnchainStrategy", () => {
         routePlan: [],
       });
 
+      // Reverse quote (leg 2)
+      mockGetQuote.mockResolvedValueOnce({
+        inputMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        outputMint: "So11111111111111111111111111111111111111112",
+        inAmount: "15000000",
+        outAmount: "101000000",
+        otherAmountThreshold: "100500000",
+        swapMode: "ExactIn",
+        slippageBps: 50,
+        routePlan: [],
+      });
+
+      // Forward swap tx
       mockExecuteSwap.mockResolvedValueOnce({
         swapTransaction: "abc123def456789012345678901234567890123456789012345678901234567890",
         lastValidBlockHeight: 12345,
       });
 
-      mockSignAndSendSwap.mockResolvedValueOnce(
-        "5wHu1qwD7q3f7YFzxmLk8TkvZabKoxh3r2mEpYfXgm9kDfLqfwA6G7PXYB8nReqs6NXCFr8Wnz7aJhSvJkrM8Ri"
-      );
+      // Reverse swap tx
+      mockExecuteSwap.mockResolvedValueOnce({
+        swapTransaction: "def456abc789012345678901234567890123456789012345678901234567890",
+        lastValidBlockHeight: 12346,
+      });
+
+      // Forward and reverse signatures
+      mockSignAndSendSwap
+        .mockResolvedValueOnce("5wHu1qwD7q3f7YFzxmLk8TkvZabKoxh3r2mEpYfXgm9kDfLqfwA6G7PXYB8nReqs6NXCFr8Wnz7aJhSvJkrM8Ri")
+        .mockResolvedValueOnce("6xIu2rxE8r4g8ZGzmNl9UlwAbLpxI4s3s3H8QYZC9oReLfMqgxB7QYYC9nSfrt7ODCGs9Xnz8bKhTvKsM9Rj");
 
       // First call is pre-trade balance, second call is post-trade balance
       mockWallet.getBalance
@@ -253,9 +274,9 @@ describe("OnchainStrategy", () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.txHash).toBe("5wHu1qwD7q3f7YFzxmLk8TkvZabKoxh3r2mEpYfXgm9kDfLqfwA6G7PXYB8nReqs6NXCFr8Wnz7aJhSvJkrM8Ri");
+      expect(result.txHash).toBe("6xIu2rxE8r4g8ZGzmNl9UlwAbLpxI4s3s3H8QYZC9oReLfMqgxB7QYYC9nSfrt7ODCGs9Xnz8bKhTvKsM9Rj");
       expect(result.profitLoss).toBeCloseTo(0.01);
-      expect(mockSignAndSendSwap).toHaveBeenCalledTimes(1);
+      expect(mockSignAndSendSwap).toHaveBeenCalledTimes(2);
     });
 
     it("should return failure when pair cannot be identified", async () => {

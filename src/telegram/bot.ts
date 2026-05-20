@@ -2,8 +2,11 @@ import { Bot, GrammyError, HttpError } from "grammy";
 import { config, authPassphrase } from "../config.js";
 import { createLogger } from "../core/logger.js";
 import type { AgentController } from "../core/agent.js";
+import type { MemorySystem } from "../core/memory.js";
 
 const logger = createLogger("telegram-bot");
+
+const PASSPHRASE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 
 export class TelegramBot {
   private bot: Bot;
@@ -11,10 +14,19 @@ export class TelegramBot {
   private authorizedChatIds: Set<number> = new Set();
   private started: boolean = false;
   private passphraseUsed: boolean = false;
+  private passphraseCreatedAt: number = Date.now();
+  private memory: MemorySystem | null = null;
 
   constructor(agent: AgentController, authorizedChatIds?: number[]) {
     this.agent = agent;
     this.bot = new Bot(config.TELEGRAM_BOT_TOKEN);
+
+    // Get memory system if available for persisting authorized chat IDs
+    try {
+      this.memory = agent.getMemory();
+    } catch {
+      // Memory may not be available in all contexts (e.g., tests)
+    }
 
     // If TELEGRAM_OWNER_CHAT_ID is configured, pre-authorize it
     if (config.TELEGRAM_OWNER_CHAT_ID) {
@@ -30,6 +42,9 @@ export class TelegramBot {
         this.authorizedChatIds.add(id);
       }
     }
+
+    // Load persisted authorized chat IDs from DB
+    this.loadAuthorizedChatIds();
 
     this.setupErrorHandling();
   }
@@ -55,6 +70,39 @@ export class TelegramBot {
     });
   }
 
+  private loadAuthorizedChatIds(): void {
+    if (!this.memory) return;
+
+    try {
+      const records = this.memory.recall("authorized_chat_ids", 1);
+      if (records.length > 0) {
+        const chatIds = JSON.parse(records[0].content) as number[];
+        for (const id of chatIds) {
+          this.authorizedChatIds.add(id);
+        }
+        logger.info(`Loaded ${chatIds.length} authorized chat IDs from DB`);
+      }
+    } catch (error) {
+      logger.debug("No persisted authorized chat IDs found", {
+        error: (error as Error).message,
+      });
+    }
+  }
+
+  private persistAuthorizedChatIds(): void {
+    if (!this.memory) return;
+
+    try {
+      const chatIds = Array.from(this.authorizedChatIds);
+      this.memory.remember("authorized_chat_ids", JSON.stringify(chatIds));
+      logger.debug(`Persisted ${chatIds.length} authorized chat IDs to DB`);
+    } catch (error) {
+      logger.error("Failed to persist authorized chat IDs", {
+        error: (error as Error).message,
+      });
+    }
+  }
+
   getBot(): Bot {
     return this.bot;
   }
@@ -69,7 +117,20 @@ export class TelegramBot {
 
   addAuthorizedChat(chatId: number): void {
     this.authorizedChatIds.add(chatId);
+    this.persistAuthorizedChatIds();
     logger.info(`Authorized chat added: ${chatId}`);
+  }
+
+  /**
+   * Revoke authorization for a chat ID.
+   */
+  revokeAuthorizedChat(chatId: number): boolean {
+    const removed = this.authorizedChatIds.delete(chatId);
+    if (removed) {
+      this.persistAuthorizedChatIds();
+      logger.info(`Authorization revoked for chat: ${chatId}`);
+    }
+    return removed;
   }
 
   isAuthorized(chatId: number): boolean {
@@ -79,6 +140,7 @@ export class TelegramBot {
   /**
    * Attempt to authorize a chat ID using a passphrase.
    * Returns true if authorization succeeds, false otherwise.
+   * Passphrase expires after 5 minutes.
    */
   tryAuthorizeWithPassphrase(chatId: number, message: string): boolean {
     // If already authorized, no need for passphrase
@@ -88,6 +150,13 @@ export class TelegramBot {
 
     // If passphrase has already been used, reject
     if (this.passphraseUsed) {
+      return false;
+    }
+
+    // Check if the passphrase has expired
+    const elapsed = Date.now() - this.passphraseCreatedAt;
+    if (elapsed > PASSPHRASE_EXPIRY_MS) {
+      logger.warn("Passphrase has expired (5 minute limit)");
       return false;
     }
 

@@ -108,9 +108,9 @@ export class BountyStrategy extends BaseStrategy {
       );
 
       return {
-        success: true,
+        success: false,
         profitLoss: 0,
-        notes: `Bounty analysis generated - recommendation reported via Telegram (awaiting auto-submission integration). ${issueUrl}:\n${response.content.substring(0, 1000)}`,
+        notes: `Analysis only - no submission endpoint configured. Bounty recommendation generated for: ${issueUrl}:\n${response.content.substring(0, 1000)}`,
       };
     } catch (error) {
       this.logger.error("Bounty execution failed", {

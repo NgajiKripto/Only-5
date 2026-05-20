@@ -100,9 +100,9 @@ export class ContentStrategy extends BaseStrategy {
       });
 
       return {
-        success: true,
+        success: false,
         profitLoss: 0,
-        notes: `Content generated but not yet published - awaiting platform integration. Preview:\n${response.content.substring(0, 500)}`,
+        notes: `Analysis only - no publishing endpoint configured. Content generated but not published. Preview:\n${response.content.substring(0, 500)}`,
       };
     } catch (error) {
       this.logger.error("Content execution failed", {
