@@ -1,11 +1,16 @@
 import { BaseStrategy, type StrategyDependencies } from "./base.js";
 import { RiskLevel, type StrategyResult, type ExecutionResult } from "../types/index.js";
+import { getQuote, executeSwap, signAndSendSwap } from "../integrations/jupiter.js";
 
 interface ProtocolInfo {
   name: string;
   description: string;
   interactionType: "swap" | "stake" | "delegate" | "vote";
 }
+
+// Token mints for performing minimal on-chain interactions
+const SOL_MINT = "So11111111111111111111111111111111111111112";
+const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 
 const DEFAULT_PROTOCOLS: ProtocolInfo[] = [
   { name: "marinade", description: "Marinade Finance - liquid staking", interactionType: "stake" },
@@ -95,28 +100,66 @@ export class AirdropStrategy extends BaseStrategy {
         };
       }
 
+      // Perform a minimal on-chain interaction via Jupiter swap
+      // Use a tiny amount (0.001 SOL or maxAmount, whichever is smaller)
+      // to prove on-chain activity and build protocol eligibility
+      const swapAmount = Math.min(0.001, maxAmount);
+      const swapLamports = Math.floor(swapAmount * 1e9);
+
+      if (swapLamports <= 0 || balance < swapAmount + 0.001) {
+        return {
+          success: false,
+          profitLoss: 0,
+          notes: "Insufficient balance for airdrop interaction",
+        };
+      }
+
+      // Execute a tiny SOL -> USDC swap via Jupiter (proves on-chain DeFi activity)
+      const quote = await getQuote(
+        SOL_MINT,
+        USDC_MINT,
+        swapLamports,
+        100 // 1% slippage tolerance for tiny amount
+      );
+
+      const swapTx = await executeSwap(
+        quote,
+        this.wallet.publicKey.toBase58()
+      );
+
+      // Sign and submit the transaction
+      const signature = await signAndSendSwap(
+        swapTx,
+        this.wallet.getKeypair(),
+        this.wallet.getConnection()
+      );
+
       // Record the interaction
       this.memory.remember(
         "airdrop_interaction",
         JSON.stringify({
           protocol: protocol.name,
           type: protocol.interactionType,
-          amount: maxAmount,
+          amount: swapAmount,
+          signature,
           timestamp: Date.now(),
         })
       );
 
       this.logger.info(`Airdrop interaction with ${protocol.name}`, {
         type: protocol.interactionType,
-        maxAmount,
+        amount: swapAmount,
+        signature,
       });
 
-      // The actual interaction would be protocol-specific
-      // For now, we record the intent and return success
+      // The cost is roughly the swap amount plus gas
+      const estimatedCost = swapAmount * 0.01; // fees and slippage
+
       return {
         success: true,
-        profitLoss: -maxAmount * 0.001, // Small gas cost
-        notes: `Interacted with ${protocol.name} (${protocol.interactionType}). Amount: ${maxAmount.toFixed(6)} SOL`,
+        txHash: signature,
+        profitLoss: -estimatedCost,
+        notes: `Interacted with ${protocol.name} (${protocol.interactionType}) via Jupiter swap. Amount: ${swapAmount.toFixed(6)} SOL. Tx: ${signature}`,
       };
     } catch (error) {
       this.logger.error("Airdrop execution failed", {

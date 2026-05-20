@@ -1,4 +1,6 @@
+import { Connection, Keypair, VersionedTransaction } from "@solana/web3.js";
 import { createLogger } from "../core/logger.js";
+import { waitForConfirmation } from "./solana.js";
 
 const logger = createLogger("jupiter");
 
@@ -104,6 +106,41 @@ export async function executeSwap(
     lastValidBlockHeight: data.lastValidBlockHeight,
   });
   return data;
+}
+
+/**
+ * Signs a swap transaction with the provided keypair and submits it to the Solana network.
+ * Returns the transaction signature upon successful submission.
+ */
+export async function signAndSendSwap(
+  swapTransaction: SwapTransaction,
+  keypair: Keypair,
+  connection: Connection
+): Promise<string> {
+  // Deserialize the transaction from base64
+  const transactionBuf = Buffer.from(swapTransaction.swapTransaction, "base64");
+  const transaction = VersionedTransaction.deserialize(transactionBuf);
+
+  // Sign the transaction with the wallet keypair
+  transaction.sign([keypair]);
+
+  // Submit the signed transaction to the network
+  const rawTransaction = transaction.serialize();
+  const signature = await connection.sendRawTransaction(rawTransaction, {
+    skipPreflight: false,
+    maxRetries: 2,
+  });
+
+  logger.info(`Transaction submitted: ${signature}`);
+
+  // Wait for confirmation
+  const confirmed = await waitForConfirmation(connection, signature, 30000);
+  if (!confirmed) {
+    throw new JupiterError(`Transaction failed to confirm: ${signature}`);
+  }
+
+  logger.info(`Transaction confirmed: ${signature}`);
+  return signature;
 }
 
 export async function getTokenPrice(

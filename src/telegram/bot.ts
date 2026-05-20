@@ -1,5 +1,5 @@
 import { Bot, GrammyError, HttpError } from "grammy";
-import { config } from "../config.js";
+import { config, authPassphrase } from "../config.js";
 import { createLogger } from "../core/logger.js";
 import type { AgentController } from "../core/agent.js";
 
@@ -10,10 +10,20 @@ export class TelegramBot {
   private agent: AgentController;
   private authorizedChatIds: Set<number> = new Set();
   private started: boolean = false;
+  private passphraseUsed: boolean = false;
 
   constructor(agent: AgentController, authorizedChatIds?: number[]) {
     this.agent = agent;
     this.bot = new Bot(config.TELEGRAM_BOT_TOKEN);
+
+    // If TELEGRAM_OWNER_CHAT_ID is configured, pre-authorize it
+    if (config.TELEGRAM_OWNER_CHAT_ID) {
+      const ownerChatId = parseInt(config.TELEGRAM_OWNER_CHAT_ID, 10);
+      if (!isNaN(ownerChatId)) {
+        this.authorizedChatIds.add(ownerChatId);
+        logger.info(`Pre-authorized owner chat ID: ${ownerChatId}`);
+      }
+    }
 
     if (authorizedChatIds && authorizedChatIds.length > 0) {
       for (const id of authorizedChatIds) {
@@ -63,12 +73,33 @@ export class TelegramBot {
   }
 
   isAuthorized(chatId: number): boolean {
-    // If no authorized chats set, authorize the first user
-    if (this.authorizedChatIds.size === 0) {
-      this.addAuthorizedChat(chatId);
+    return this.authorizedChatIds.has(chatId);
+  }
+
+  /**
+   * Attempt to authorize a chat ID using a passphrase.
+   * Returns true if authorization succeeds, false otherwise.
+   */
+  tryAuthorizeWithPassphrase(chatId: number, message: string): boolean {
+    // If already authorized, no need for passphrase
+    if (this.authorizedChatIds.has(chatId)) {
       return true;
     }
-    return this.authorizedChatIds.has(chatId);
+
+    // If passphrase has already been used, reject
+    if (this.passphraseUsed) {
+      return false;
+    }
+
+    // Check if the message matches the auth passphrase
+    if (message.trim() === authPassphrase) {
+      this.addAuthorizedChat(chatId);
+      this.passphraseUsed = true;
+      logger.info(`Chat ${chatId} authorized via passphrase`);
+      return true;
+    }
+
+    return false;
   }
 
   async start(): Promise<void> {

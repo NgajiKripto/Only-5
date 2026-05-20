@@ -29,10 +29,21 @@ export function setupTelegram(
   // Register authorization middleware
   grammyBot.use(async (ctx, next) => {
     const chatId = ctx.chat?.id;
-    if (chatId && bot.isAuthorized(chatId)) {
+    if (!chatId) return;
+
+    if (bot.isAuthorized(chatId)) {
+      await next();
+      return;
+    }
+
+    // If not authorized, check if the message is a passphrase attempt
+    const messageText = ctx.message?.text;
+    if (messageText && bot.tryAuthorizeWithPassphrase(chatId, messageText)) {
+      await ctx.reply("Authorization successful. You now have full access.");
       await next();
     } else {
       logger.warn(`Unauthorized access attempt from chat ${chatId}`);
+      await ctx.reply("Unauthorized. Send the auth passphrase to gain access.");
     }
   });
 

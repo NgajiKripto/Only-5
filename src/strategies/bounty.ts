@@ -1,3 +1,4 @@
+// TODO: Auto-submit PRs via GitHub API for bounty claims. Currently generates recommendations reported via Telegram.
 import { BaseStrategy, type StrategyDependencies } from "./base.js";
 import { RiskLevel, type StrategyResult, type ExecutionResult } from "../types/index.js";
 
@@ -109,7 +110,7 @@ export class BountyStrategy extends BaseStrategy {
       return {
         success: true,
         profitLoss: 0,
-        notes: `Bounty analysis for ${issueUrl}:\n${response.content.substring(0, 1000)}`,
+        notes: `Bounty analysis generated - recommendation reported via Telegram (awaiting auto-submission integration). ${issueUrl}:\n${response.content.substring(0, 1000)}`,
       };
     } catch (error) {
       this.logger.error("Bounty execution failed", {

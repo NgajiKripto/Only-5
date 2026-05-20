@@ -8,6 +8,19 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { randomUUID } from "crypto";
 
+// Mock Jupiter module
+vi.mock("../../src/integrations/jupiter.js", () => ({
+  getQuote: vi.fn(),
+  executeSwap: vi.fn(),
+  signAndSendSwap: vi.fn(),
+}));
+
+import { getQuote, executeSwap, signAndSendSwap } from "../../src/integrations/jupiter.js";
+
+const mockGetQuote = vi.mocked(getQuote);
+const mockExecuteSwap = vi.mocked(executeSwap);
+const mockSignAndSendSwap = vi.mocked(signAndSendSwap);
+
 describe("AirdropStrategy", () => {
   let strategy: AirdropStrategy;
   let memory: MemorySystem;
@@ -15,9 +28,13 @@ describe("AirdropStrategy", () => {
   let mockWallet: {
     getBalance: ReturnType<typeof vi.fn>;
     publicKey: { toBase58: () => string };
+    getKeypair: ReturnType<typeof vi.fn>;
+    getConnection: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
+    vi.clearAllMocks();
+
     const dir = join(tmpdir(), "only5-test-" + randomUUID());
     mkdirSync(dir, { recursive: true });
     const dbPath = join(dir, "test.db");
@@ -32,6 +49,8 @@ describe("AirdropStrategy", () => {
     mockWallet = {
       getBalance: vi.fn().mockResolvedValue(1.0),
       publicKey: { toBase58: () => "TestPublicKey123" },
+      getKeypair: vi.fn().mockReturnValue({}),
+      getConnection: vi.fn().mockReturnValue({}),
     };
 
     const deps: StrategyDependencies = {
@@ -148,6 +167,28 @@ describe("AirdropStrategy", () => {
   });
 
   describe("execute", () => {
+    beforeEach(() => {
+      mockGetQuote.mockResolvedValue({
+        inputMint: "So11111111111111111111111111111111111111112",
+        outputMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        inAmount: "1000000",
+        outAmount: "150000",
+        otherAmountThreshold: "148500",
+        swapMode: "ExactIn",
+        slippageBps: 100,
+        routePlan: [],
+      });
+
+      mockExecuteSwap.mockResolvedValue({
+        swapTransaction: "base64encodedtx",
+        lastValidBlockHeight: 99999,
+      });
+
+      mockSignAndSendSwap.mockResolvedValue(
+        "5FakeSignature123456789012345678901234567890123456789012345678901234"
+      );
+    });
+
     it("should record interaction in memory", async () => {
       const result = await strategy.execute({
         opportunity: "Interact with marinade (Marinade Finance - liquid staking) for potential airdrop eligibility",
@@ -163,11 +204,10 @@ describe("AirdropStrategy", () => {
       expect(interactions.length).toBe(1);
       const data = JSON.parse(interactions[0].content);
       expect(data.protocol).toBe("marinade");
+      expect(data.signature).toBeDefined();
     });
 
-    it("should limit exposure to max fraction of balance", async () => {
-      mockWallet.getBalance.mockResolvedValue(2.0);
-
+    it("should perform a Jupiter swap for on-chain activity", async () => {
       const result = await strategy.execute({
         opportunity: "Interact with jupiter (Jupiter - DEX aggregator) for potential airdrop eligibility",
         confidence: 0.6,
@@ -176,8 +216,10 @@ describe("AirdropStrategy", () => {
       });
 
       expect(result.success).toBe(true);
-      // With 2.0 SOL balance and 5% max exposure, max amount is 0.1 SOL
-      expect(result.notes).toContain("0.1");
+      expect(result.txHash).toBeDefined();
+      expect(mockGetQuote).toHaveBeenCalled();
+      expect(mockExecuteSwap).toHaveBeenCalled();
+      expect(mockSignAndSendSwap).toHaveBeenCalled();
     });
 
     it("should return failure when protocol cannot be identified", async () => {
@@ -190,6 +232,20 @@ describe("AirdropStrategy", () => {
 
       expect(result.success).toBe(false);
       expect(result.notes).toContain("Could not identify");
+    });
+
+    it("should return failure when balance is insufficient", async () => {
+      mockWallet.getBalance.mockResolvedValue(0.001);
+
+      const result = await strategy.execute({
+        opportunity: "Interact with marinade (Marinade Finance - liquid staking) for potential airdrop eligibility",
+        confidence: 0.6,
+        expectedReward: 0,
+        risk: RiskLevel.LOW,
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.notes).toContain("Insufficient balance");
     });
   });
 });

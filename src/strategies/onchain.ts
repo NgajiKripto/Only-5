@@ -1,6 +1,6 @@
 import { BaseStrategy, type StrategyDependencies } from "./base.js";
 import { RiskLevel, type StrategyResult, type ExecutionResult } from "../types/index.js";
-import { getQuote, getTokenPrice, executeSwap } from "../integrations/jupiter.js";
+import { getQuote, getTokenPrice, executeSwap, signAndSendSwap } from "../integrations/jupiter.js";
 
 // Common Solana token mints
 const SOL_MINT = "So11111111111111111111111111111111111111112";
@@ -165,6 +165,9 @@ export class OnchainStrategy extends BaseStrategy {
         };
       }
 
+      // Record pre-trade balance for actual P&L calculation
+      const balanceBefore = balance;
+
       // Execute the forward swap
       const tradeAmount = Math.floor(
         (pair.inputMint === SOL_MINT ? balance * 0.1 : balance * 0.5) * 1e9
@@ -182,6 +185,17 @@ export class OnchainStrategy extends BaseStrategy {
         this.wallet.publicKey.toBase58()
       );
 
+      // Sign and submit the transaction to the Solana network
+      const signature = await signAndSendSwap(
+        swapTx,
+        this.wallet.getKeypair(),
+        this.wallet.getConnection()
+      );
+
+      // Check post-trade balance to determine actual P&L
+      const balanceAfter = await this.wallet.getBalance();
+      const actualProfitLoss = balanceAfter - balanceBefore;
+
       // Track the trade
       this.memory.remember(
         "trade",
@@ -190,15 +204,17 @@ export class OnchainStrategy extends BaseStrategy {
           pair: pair.label,
           amount: tradeAmount,
           expectedProfit: opportunity.expectedReward,
+          actualProfitLoss,
+          signature,
           timestamp: Date.now(),
         })
       );
 
       return {
         success: true,
-        txHash: swapTx.swapTransaction.substring(0, 64),
-        profitLoss: opportunity.expectedReward,
-        notes: `Executed ${pair.label} swap, expected profit: ${opportunity.expectedReward.toFixed(6)} SOL`,
+        txHash: signature,
+        profitLoss: actualProfitLoss,
+        notes: `Executed ${pair.label} swap. Expected: ${opportunity.expectedReward.toFixed(6)} SOL, Actual P&L: ${actualProfitLoss.toFixed(6)} SOL`,
       };
     } catch (error) {
       this.logger.error("Onchain execution failed", {

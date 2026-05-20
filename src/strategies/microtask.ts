@@ -1,3 +1,4 @@
+// TODO: Connect to microtask marketplace (e.g., Effect Network, Microworkers API) to submit and earn from tasks
 import { BaseStrategy, type StrategyDependencies } from "./base.js";
 import { RiskLevel, type StrategyResult, type ExecutionResult } from "../types/index.js";
 
@@ -123,7 +124,7 @@ export class MicrotaskStrategy extends BaseStrategy {
       return {
         success: true,
         profitLoss: 0, // Reward comes later when task is accepted
-        notes: `Task completed (${category}):\n${response.content.substring(0, 1000)}`,
+        notes: `Task completed but not yet submitted - awaiting marketplace integration (${category}):\n${response.content.substring(0, 1000)}`,
       };
     } catch (error) {
       this.logger.error("Microtask execution failed", {

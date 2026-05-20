@@ -36,6 +36,11 @@ export class AlertManager {
   constructor(bot: TelegramBot) {
     this.bot = bot;
     this.startQueueProcessor();
+
+    // Ensure interval is cleaned up if the process exits unexpectedly
+    process.on("exit", () => {
+      this.stop();
+    });
   }
 
   private startQueueProcessor(): void {

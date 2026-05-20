@@ -44,6 +44,7 @@ export class RiskManager {
   private currentBalance: number;
   private lastLossTime: number = 0;
   private memory: MemorySystem | null;
+  private openPositions: number = 0;
 
   constructor(
     balance: number,
@@ -101,12 +102,13 @@ export class RiskManager {
       };
     }
 
-    // Check max exposure
+    // Check max exposure (cumulative open positions + this trade)
     const maxExposureAmount = this.currentBalance * this.limits.maxExposure;
-    if (amount > maxExposureAmount) {
+    const totalExposure = this.openPositions + amount;
+    if (totalExposure > maxExposureAmount) {
       return {
         allowed: false,
-        reason: `Trade exceeds max exposure (${this.limits.maxExposure * 100}% of balance).`,
+        reason: `Total exposure (${totalExposure.toFixed(4)} SOL) would exceed max exposure (${maxExposureAmount.toFixed(4)} SOL, ${this.limits.maxExposure * 100}% of balance).`,
       };
     }
 
@@ -135,6 +137,20 @@ export class RiskManager {
     }
 
     this.persistState();
+  }
+
+  openPosition(amount: number): void {
+    this.openPositions += amount;
+    logger.debug(`Position opened: ${amount} SOL, total open: ${this.openPositions} SOL`);
+  }
+
+  closePosition(amount: number): void {
+    this.openPositions = Math.max(0, this.openPositions - amount);
+    logger.debug(`Position closed: ${amount} SOL, total open: ${this.openPositions} SOL`);
+  }
+
+  getOpenPositions(): number {
+    return this.openPositions;
   }
 
   getDailyPnL(): DailyPnL {
@@ -212,6 +228,7 @@ export class RiskManager {
           startingBalance: this.startingBalance,
           currentBalance: this.currentBalance,
           lastLossTime: this.lastLossTime,
+          openPositions: this.openPositions,
         })
       );
     } catch (error) {
@@ -230,8 +247,10 @@ export class RiskManager {
         const state = JSON.parse(states[0].content);
         this.trades = state.trades ?? [];
         this.lastLossTime = state.lastLossTime ?? 0;
+        this.openPositions = state.openPositions ?? 0;
         logger.info("Risk state restored from memory", {
           tradeCount: this.trades.length,
+          openPositions: this.openPositions,
         });
       }
     } catch (error) {

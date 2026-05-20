@@ -25,6 +25,7 @@ vi.mock("grammy", () => {
 import { MemorySystem } from "../../src/core/memory.js";
 import { AlertManager, AlertType } from "../../src/telegram/alerts.js";
 import { TelegramBot } from "../../src/telegram/bot.js";
+import { authPassphrase } from "../../src/config.js";
 
 // Helper to create a mock AgentController
 function createMockAgent(dbPath: string) {
@@ -351,8 +352,15 @@ describe("Telegram Commands", () => {
   });
 
   describe("TelegramBot", () => {
-    it("should authorize first user if no authorized chats set", () => {
+    it("should not auto-authorize first user without passphrase", () => {
       const telegramBot = new TelegramBot(agent as any);
+      expect(telegramBot.isAuthorized(12345)).toBe(false);
+    });
+
+    it("should authorize user via passphrase", () => {
+      const telegramBot = new TelegramBot(agent as any);
+      const result = telegramBot.tryAuthorizeWithPassphrase(12345, authPassphrase);
+      expect(result).toBe(true);
       expect(telegramBot.isAuthorized(12345)).toBe(true);
       expect(telegramBot.getAuthorizedChatIds().has(12345)).toBe(true);
     });

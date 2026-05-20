@@ -56,27 +56,20 @@ describe("LearningSystem", () => {
     });
 
     it("should extract insights from mock decisions", async () => {
-      // Add some decision observations that the learning system can find
-      memory.remember(
-        "decisions",
-        JSON.stringify({
-          strategy: "onchain",
-          action: "swap SOL to USDC",
-          reasoning: "Price dip detected",
-          outcome: "success",
-          reward: 0.5,
-        })
-      );
-      memory.remember(
-        "decisions",
-        JSON.stringify({
-          strategy: "bounty",
-          action: "claim docs bounty",
-          reasoning: "Easy task",
-          outcome: "success",
-          reward: 1.0,
-        })
-      );
+      // Add decisions to the decisions table via recordDecision
+      const id1 = memory.recordDecision({
+        strategy: "onchain",
+        action: "swap SOL to USDC",
+        reasoning: "Price dip detected",
+      });
+      memory.recordOutcome(id1, "success", 0.5);
+
+      const id2 = memory.recordDecision({
+        strategy: "bounty",
+        action: "claim docs bounty",
+        reasoning: "Easy task",
+      });
+      memory.recordOutcome(id2, "success", 1.0);
 
       const insights = await learning.runLearningCycle();
 
@@ -87,14 +80,11 @@ describe("LearningSystem", () => {
     });
 
     it("should handle LLM failure gracefully", async () => {
-      memory.remember(
-        "decisions",
-        JSON.stringify({
-          strategy: "test",
-          action: "test action",
-          reasoning: "testing",
-        })
-      );
+      memory.recordDecision({
+        strategy: "test",
+        action: "test action",
+        reasoning: "testing",
+      });
 
       mockLLM.mockRejectedValueOnce(new Error("API timeout"));
 
@@ -103,14 +93,11 @@ describe("LearningSystem", () => {
     });
 
     it("should handle malformed LLM response", async () => {
-      memory.remember(
-        "decisions",
-        JSON.stringify({
-          strategy: "test",
-          action: "test",
-          reasoning: "test",
-        })
-      );
+      memory.recordDecision({
+        strategy: "test",
+        action: "test",
+        reasoning: "test",
+      });
 
       mockLLM.mockResolvedValueOnce({
         content: "This is not JSON at all",

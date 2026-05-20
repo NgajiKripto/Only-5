@@ -152,32 +152,9 @@ export class LearningSystem {
 
   private getRecentDecisions(): DecisionRecord[] {
     const cutoff = Date.now() - 24 * 60 * 60 * 1000; // last 24 hours
-    const observations = this.memory.recall("decisions", 50);
+    const decisions = this.memory.getRecentDecisions(50);
 
-    // Also get decisions directly from the decisions table via recall pattern
-    // The memory system stores decisions in the decisions table
-    // We retrieve via observations for now since that's what the existing agent uses
-    const decisions: DecisionRecord[] = [];
-    for (const obs of observations) {
-      try {
-        const parsed = JSON.parse(obs.content);
-        if (obs.timestamp >= cutoff) {
-          decisions.push({
-            id: obs.id,
-            timestamp: obs.timestamp,
-            strategy: parsed.strategy ?? "unknown",
-            action: parsed.action ?? "",
-            reasoning: parsed.reasoning ?? "",
-            outcome: parsed.outcome,
-            reward: parsed.reward,
-          });
-        }
-      } catch {
-        // Skip malformed entries
-      }
-    }
-
-    return decisions.slice(0, 50);
+    return decisions.filter((d) => d.timestamp >= cutoff);
   }
 
   private groupByStrategy(decisions: DecisionRecord[]): Record<string, DecisionRecord[]> {

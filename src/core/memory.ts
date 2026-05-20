@@ -154,6 +154,13 @@ export class MemorySystem {
     };
   }
 
+  getRecentDecisions(limit: number = 50): DecisionRecord[] {
+    const stmt = this.db.prepare(
+      "SELECT * FROM decisions ORDER BY timestamp DESC LIMIT ?"
+    );
+    return stmt.all(limit) as DecisionRecord[];
+  }
+
   close(): void {
     this.db.close();
     logger.info("Memory system closed");

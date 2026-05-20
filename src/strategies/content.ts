@@ -1,3 +1,4 @@
+// TODO: Connect to publishing platform (e.g., mirror.xyz, Substack API) to monetize content
 import { BaseStrategy, type StrategyDependencies } from "./base.js";
 import { RiskLevel, type StrategyResult, type ExecutionResult } from "../types/index.js";
 import { getTokenPrice } from "../integrations/jupiter.js";
@@ -101,7 +102,7 @@ export class ContentStrategy extends BaseStrategy {
       return {
         success: true,
         profitLoss: 0,
-        notes: response.content,
+        notes: `Content generated but not yet published - awaiting platform integration. Preview:\n${response.content.substring(0, 500)}`,
       };
     } catch (error) {
       this.logger.error("Content execution failed", {

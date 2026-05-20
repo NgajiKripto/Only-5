@@ -13,12 +13,14 @@ vi.mock("../../src/integrations/jupiter.js", () => ({
   getQuote: vi.fn(),
   getTokenPrice: vi.fn(),
   executeSwap: vi.fn(),
+  signAndSendSwap: vi.fn(),
 }));
 
-import { getQuote, executeSwap } from "../../src/integrations/jupiter.js";
+import { getQuote, executeSwap, signAndSendSwap } from "../../src/integrations/jupiter.js";
 
 const mockGetQuote = vi.mocked(getQuote);
 const mockExecuteSwap = vi.mocked(executeSwap);
+const mockSignAndSendSwap = vi.mocked(signAndSendSwap);
 
 describe("OnchainStrategy", () => {
   let strategy: OnchainStrategy;
@@ -27,6 +29,8 @@ describe("OnchainStrategy", () => {
   let mockWallet: {
     getBalance: ReturnType<typeof vi.fn>;
     publicKey: { toBase58: () => string };
+    getKeypair: ReturnType<typeof vi.fn>;
+    getConnection: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -46,6 +50,8 @@ describe("OnchainStrategy", () => {
     mockWallet = {
       getBalance: vi.fn().mockResolvedValue(1.0),
       publicKey: { toBase58: () => "TestPublicKey123" },
+      getKeypair: vi.fn().mockReturnValue({}),
+      getConnection: vi.fn().mockReturnValue({}),
     };
 
     const deps: StrategyDependencies = {
@@ -230,6 +236,15 @@ describe("OnchainStrategy", () => {
         lastValidBlockHeight: 12345,
       });
 
+      mockSignAndSendSwap.mockResolvedValueOnce(
+        "5wHu1qwD7q3f7YFzxmLk8TkvZabKoxh3r2mEpYfXgm9kDfLqfwA6G7PXYB8nReqs6NXCFr8Wnz7aJhSvJkrM8Ri"
+      );
+
+      // First call is pre-trade balance, second call is post-trade balance
+      mockWallet.getBalance
+        .mockResolvedValueOnce(1.0)
+        .mockResolvedValueOnce(1.01);
+
       const result = await strategy.execute({
         opportunity: "Arbitrage on SOL/USDC: 1% profit via route inefficiency",
         confidence: 0.8,
@@ -238,8 +253,9 @@ describe("OnchainStrategy", () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.txHash).toBeDefined();
-      expect(result.profitLoss).toBe(0.01);
+      expect(result.txHash).toBe("5wHu1qwD7q3f7YFzxmLk8TkvZabKoxh3r2mEpYfXgm9kDfLqfwA6G7PXYB8nReqs6NXCFr8Wnz7aJhSvJkrM8Ri");
+      expect(result.profitLoss).toBeCloseTo(0.01);
+      expect(mockSignAndSendSwap).toHaveBeenCalledTimes(1);
     });
 
     it("should return failure when pair cannot be identified", async () => {

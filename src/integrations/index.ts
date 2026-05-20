@@ -9,6 +9,7 @@ export {
 export {
   getQuote,
   executeSwap,
+  signAndSendSwap,
   getTokenPrice,
   JupiterError,
 } from "./jupiter.js";

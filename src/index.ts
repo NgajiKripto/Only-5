@@ -109,6 +109,7 @@ async function main(): Promise<void> {
     logger.error("Unhandled rejection", {
       error: reason instanceof Error ? reason.message : String(reason),
     });
+    shutdown("unhandledRejection").catch(() => process.exit(1));
   });
 
   process.on("uncaughtException", (error) => {
