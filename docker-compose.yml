@@ -1,0 +1,9 @@
+services:
+  agent:
+    build: .
+    container_name: only-5-agent
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
