@@ -1,9 +1,10 @@
-import { readFileSync, existsSync } from "fs";
+import { openSync, readSync, closeSync, statSync, existsSync } from "fs";
 import type { Context } from "grammy";
 import type { AgentController } from "../../core/agent.js";
 
 const MAX_TELEGRAM_MESSAGE = 4096;
 const LOG_FILE = "logs/agent.log";
+const MAX_TAIL_BYTES = 50 * 1024; // Read at most last 50KB
 
 export function registerLogsCommands(
   bot: { command: (cmd: string, handler: (ctx: Context) => Promise<void>) => void },
@@ -21,7 +22,7 @@ export function registerLogsCommands(
       }
     }
 
-    const lines = readLogLines(count);
+    const lines = readLogLinesTail(count);
 
     if (lines.length === 0) {
       await ctx.reply("\uD83D\uDCDC No log entries found.");
@@ -39,7 +40,7 @@ export function registerLogsCommands(
   });
 
   bot.command("errors", async (ctx: Context) => {
-    const lines = readLogLines(200);
+    const lines = readLogLinesTail(200);
     const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
 
     const errorLines = lines.filter((line) => {
@@ -79,15 +80,42 @@ export function registerLogsCommands(
   });
 }
 
-function readLogLines(count: number): string[] {
+/**
+ * Read the last N lines from the log file using a reverse-read approach.
+ * Only reads the last MAX_TAIL_BYTES of the file to avoid loading the entire file into memory.
+ */
+function readLogLinesTail(count: number): string[] {
   if (!existsSync(LOG_FILE)) {
     return [];
   }
 
   try {
-    const content = readFileSync(LOG_FILE, "utf-8");
-    const allLines = content.trim().split("\n").filter((l) => l.length > 0);
-    return allLines.slice(-count);
+    const stat = statSync(LOG_FILE);
+    const fileSize = stat.size;
+
+    if (fileSize === 0) {
+      return [];
+    }
+
+    // Determine how many bytes to read from the end
+    const bytesToRead = Math.min(fileSize, MAX_TAIL_BYTES);
+    const startPosition = fileSize - bytesToRead;
+
+    const fd = openSync(LOG_FILE, "r");
+    try {
+      const buffer = Buffer.alloc(bytesToRead);
+      readSync(fd, buffer, 0, bytesToRead, startPosition);
+
+      const content = buffer.toString("utf-8");
+      const allLines = content.split("\n").filter((l) => l.length > 0);
+
+      // If we did not read from the beginning, the first line may be partial - skip it
+      const lines = startPosition > 0 ? allLines.slice(1) : allLines;
+
+      return lines.slice(-count);
+    } finally {
+      closeSync(fd);
+    }
   } catch {
     return [];
   }

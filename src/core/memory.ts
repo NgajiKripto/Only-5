@@ -165,4 +165,29 @@ export class MemorySystem {
     this.db.close();
     logger.info("Memory system closed");
   }
+
+  /**
+   * Prune records older than maxAgeDays from all tables.
+   * Runs VACUUM after deletion to reclaim disk space.
+   */
+  prune(maxAgeDays: number): void {
+    const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+    logger.info(`Pruning records older than ${maxAgeDays} days (before ${new Date(cutoff).toISOString()})`);
+
+    const deleteDecisions = this.db.prepare(
+      "DELETE FROM decisions WHERE timestamp < ?"
+    );
+    const deleteObservations = this.db.prepare(
+      "DELETE FROM observations WHERE timestamp < ?"
+    );
+
+    const decisionsResult = deleteDecisions.run(cutoff);
+    const observationsResult = deleteObservations.run(cutoff);
+
+    logger.info(`Pruned ${decisionsResult.changes} decisions and ${observationsResult.changes} observations`);
+
+    // VACUUM to reclaim disk space
+    this.db.exec("VACUUM");
+    logger.debug("Database VACUUM completed");
+  }
 }

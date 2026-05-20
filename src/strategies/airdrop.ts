@@ -130,8 +130,7 @@ export class AirdropStrategy extends BaseStrategy {
       // Sign and submit the transaction
       const signature = await signAndSendSwap(
         swapTx,
-        this.wallet.getKeypair(),
-        this.wallet.getConnection()
+        this.wallet
       );
 
       // Record the interaction

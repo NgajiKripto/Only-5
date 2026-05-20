@@ -122,9 +122,9 @@ export class MicrotaskStrategy extends BaseStrategy {
       });
 
       return {
-        success: true,
-        profitLoss: 0, // Reward comes later when task is accepted
-        notes: `Task completed but not yet submitted - awaiting marketplace integration (${category}):\n${response.content.substring(0, 1000)}`,
+        success: false,
+        profitLoss: 0,
+        notes: `Analysis only - no submission endpoint configured. Task completed locally but not submitted (${category}):\n${response.content.substring(0, 1000)}`,
       };
     } catch (error) {
       this.logger.error("Microtask execution failed", {

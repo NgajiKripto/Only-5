@@ -130,6 +130,18 @@ export class AgentController extends EventEmitter {
       logger.info("Daily risk counters reset at midnight");
     });
 
+    // Daily database pruning at 1 AM - keep last 30 days of data
+    this.scheduler.registerTask("db-prune", "0 1 * * *", () => {
+      try {
+        this.memory.prune(30);
+        logger.info("Database pruning completed (30 day retention)");
+      } catch (error) {
+        logger.error("Database pruning failed", {
+          error: (error as Error).message,
+        });
+      }
+    });
+
     // Balance check every 5 minutes
     this.scheduler.registerTask("balance-check", "*/5 * * * *", async () => {
       await this.checkBalance();
@@ -277,8 +289,18 @@ export class AgentController extends EventEmitter {
         reasoning: `Confidence: ${selected.result.confidence}, Expected reward: ${selected.result.expectedReward}`,
       });
 
-      // Execute
-      const executionResult = await selected.strategy.execute(selected.result);
+      // Track exposure: open position before execution
+      const exposureAmount = Math.abs(tradeAmount);
+      this.riskManager.openPosition(exposureAmount);
+
+      let executionResult;
+      try {
+        // Execute
+        executionResult = await selected.strategy.execute(selected.result);
+      } finally {
+        // Close position after execution completes (success or failure)
+        this.riskManager.closePosition(exposureAmount);
+      }
 
       // Record outcome
       this.memory.recordOutcome(
@@ -289,7 +311,7 @@ export class AgentController extends EventEmitter {
 
       // Record in risk manager
       this.riskManager.recordTrade(
-        Math.abs(tradeAmount),
+        exposureAmount,
         executionResult.profitLoss
       );
 

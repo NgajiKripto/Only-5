@@ -5,6 +5,7 @@ import {
   PublicKey,
   SystemProgram,
   Transaction,
+  VersionedTransaction,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import bs58 from "bs58";
@@ -50,10 +51,6 @@ export class WalletManager {
 
   getConnection(): Connection {
     return this.connection;
-  }
-
-  getKeypair(): Keypair {
-    return this.keypair;
   }
 
   async getBalance(): Promise<number> {
@@ -116,9 +113,31 @@ export class WalletManager {
     return signature;
   }
 
+  /**
+   * Signs a legacy Transaction internally without exposing the keypair.
+   */
   async signTransaction(tx: Transaction): Promise<Transaction> {
     tx.sign(this.keypair);
     return tx;
+  }
+
+  /**
+   * Signs a VersionedTransaction internally and submits it to the network.
+   * Returns the transaction signature.
+   */
+  async signAndSendVersionedTransaction(
+    serializedTransaction: Buffer
+  ): Promise<string> {
+    const transaction = VersionedTransaction.deserialize(serializedTransaction);
+    transaction.sign([this.keypair]);
+
+    const rawTransaction = transaction.serialize();
+    const signature = await this.connection.sendRawTransaction(rawTransaction, {
+      skipPreflight: false,
+      maxRetries: 2,
+    });
+
+    return signature;
   }
 
   async trackPnL(

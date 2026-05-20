@@ -55,9 +55,8 @@ describe("WalletManager", () => {
       expect(wallet.publicKey.toBase58()).toBe(keypair.publicKey.toBase58());
     });
 
-    it("should expose connection and keypair", () => {
+    it("should expose connection", () => {
       expect(wallet.getConnection()).toBe(mockConnection);
-      expect(wallet.getKeypair()).toBe(keypair);
     });
   });
 
