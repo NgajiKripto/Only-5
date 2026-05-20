@@ -6,3 +6,8 @@ export type { TaskInfo } from "./scheduler.js";
 export { WalletManager } from "./wallet.js";
 export type { TokenBalance } from "./wallet.js";
 export { AgentController } from "./agent.js";
+export type { AgentOptions } from "./agent.js";
+export { RiskManager } from "./risk.js";
+export type { RiskLimits, TradeCheck, DailyPnL } from "./risk.js";
+export { LearningSystem } from "./learning.js";
+export type { LearningInsight, LearningDependencies } from "./learning.js";

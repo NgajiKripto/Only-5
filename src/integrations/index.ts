@@ -13,3 +13,5 @@ export {
   JupiterError,
 } from "./jupiter.js";
 export type { JupiterQuote, SwapTransaction, TokenPrice } from "./jupiter.js";
+export { GitHubClient } from "./github.js";
+export type { GitHubIssue, IssueDetails, SearchOptions } from "./github.js";

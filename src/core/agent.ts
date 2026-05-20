@@ -4,6 +4,8 @@ import { createLogger } from "./logger.js";
 import { MemorySystem } from "./memory.js";
 import { Scheduler } from "./scheduler.js";
 import { WalletManager } from "./wallet.js";
+import { RiskManager, type RiskLimits, type TradeCheck } from "./risk.js";
+import { LearningSystem } from "./learning.js";
 import { chat } from "../integrations/openrouter.js";
 import type {
   AgentState,
@@ -14,18 +16,31 @@ import type {
 
 const logger = createLogger("agent");
 
+const LOW_BALANCE_THRESHOLD = 0.2; // SOL
+const HEALTH_CHECK_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+export interface AgentOptions {
+  riskLimits?: Partial<RiskLimits>;
+  learningIntervalHours?: number;
+}
+
 export class AgentController extends EventEmitter {
   private memory: MemorySystem;
   private wallet: WalletManager;
   private scheduler: Scheduler;
+  private riskManager!: RiskManager;
+  private learningSystem!: LearningSystem;
   private strategies: Map<string, Strategy> = new Map();
   private status: AgentState["status"] = "idle";
   private startTime: number = 0;
   private lastAction?: string;
+  private lastSuccessfulCycle: number = 0;
   private running: boolean = false;
+  private options: AgentOptions;
 
-  constructor() {
+  constructor(options?: AgentOptions) {
     super();
+    this.options = options ?? {};
     this.memory = new MemorySystem();
     this.wallet = new WalletManager(this.memory);
     this.scheduler = new Scheduler();
@@ -41,6 +56,14 @@ export class AgentController extends EventEmitter {
 
   getScheduler(): Scheduler {
     return this.scheduler;
+  }
+
+  getRiskManager(): RiskManager {
+    return this.riskManager;
+  }
+
+  getLearningSystem(): LearningSystem {
+    return this.learningSystem;
   }
 
   registerStrategy(strategy: Strategy): void {
@@ -60,6 +83,27 @@ export class AgentController extends EventEmitter {
 
     logger.info(`${config.AGENT_NAME} starting...`);
 
+    // Initialize risk manager with current balance
+    let balance = 0;
+    try {
+      balance = await this.wallet.getBalance();
+    } catch {
+      balance = 5.0; // Default starting balance assumption
+      logger.warn("Could not fetch balance, using default for risk manager");
+    }
+
+    this.riskManager = new RiskManager(
+      balance,
+      this.options.riskLimits,
+      this.memory
+    );
+
+    // Initialize learning system
+    this.learningSystem = new LearningSystem({
+      llm: chat,
+      memory: this.memory,
+    });
+
     // Register the main evaluation loop (every 30 seconds)
     this.scheduler.registerTask(
       "evaluate-strategies",
@@ -70,24 +114,60 @@ export class AgentController extends EventEmitter {
       }
     );
 
-    // Register the learning review loop (every hour)
+    // Register the learning loop (default every 6 hours)
+    const learningHours = this.options.learningIntervalHours ?? 6;
     this.scheduler.registerTask(
-      "learning-review",
-      "0 * * * *",
+      "learning-cycle",
+      `0 */${learningHours} * * *`,
       async () => {
-        await this.reviewAndLearn();
+        await this.runLearningCycle();
       }
     );
 
+    // Daily P&L reset at midnight
+    this.scheduler.registerTask("daily-reset", "0 0 * * *", () => {
+      this.riskManager.resetDaily();
+      logger.info("Daily risk counters reset at midnight");
+    });
+
+    // Balance check every 5 minutes
+    this.scheduler.registerTask("balance-check", "*/5 * * * *", async () => {
+      await this.checkBalance();
+    });
+
+    // Health monitoring every 2 minutes
+    this.scheduler.registerTask("health-monitor", "*/2 * * * *", () => {
+      this.checkHealth();
+    });
+
     this.scheduler.startAll();
+    this.lastSuccessfulCycle = Date.now();
     this.emit("started");
     logger.info(`${config.AGENT_NAME} started successfully`);
   }
 
   async stop(): Promise<void> {
+    logger.info(`${config.AGENT_NAME} shutting down...`);
     this.running = false;
+
+    // 1. Stop scheduler (no new tasks)
     this.scheduler.stopAll();
+
+    // 2. Stop strategies (graceful wind-down)
+    for (const [name, strategy] of this.strategies) {
+      try {
+        strategy.enabled = false;
+        logger.debug(`Strategy "${name}" disabled for shutdown`);
+      } catch (error) {
+        logger.error(`Error disabling strategy "${name}"`, {
+          error: (error as Error).message,
+        });
+      }
+    }
+
+    // 3. Close database
     this.memory.close();
+
     this.status = "idle";
     this.emit("stopped");
     logger.info(`${config.AGENT_NAME} stopped`);
@@ -97,6 +177,8 @@ export class AgentController extends EventEmitter {
     if (!this.running) return;
 
     this.status = "evaluating";
+    this.lastSuccessfulCycle = Date.now();
+
     const opportunities: Array<{
       strategy: Strategy;
       result: StrategyResult;
@@ -168,6 +250,26 @@ export class AgentController extends EventEmitter {
         }
       }
 
+      // Risk check before execution
+      const tradeAmount = selected.result.expectedReward;
+      const riskCheck: TradeCheck = this.riskManager.canTrade(
+        Math.abs(tradeAmount)
+      );
+
+      if (!riskCheck.allowed) {
+        logger.warn("Trade blocked by risk manager", {
+          strategy: selected.strategy.name,
+          reason: riskCheck.reason,
+        });
+        this.emit("alert", {
+          type: "risk_blocked",
+          strategy: selected.strategy.name,
+          message: riskCheck.reason,
+        });
+        this.status = "idle";
+        return;
+      }
+
       // Record the decision
       const decisionId = this.memory.recordDecision({
         strategy: selected.strategy.name,
@@ -185,11 +287,18 @@ export class AgentController extends EventEmitter {
         executionResult.profitLoss
       );
 
+      // Record in risk manager
+      this.riskManager.recordTrade(
+        Math.abs(tradeAmount),
+        executionResult.profitLoss
+      );
+
       this.lastAction = `${selected.strategy.name}: ${selected.result.opportunity}`;
 
       if (executionResult.profitLoss !== 0) {
+        const alertType = executionResult.profitLoss > 0 ? "profit" : "loss";
         this.emit("alert", {
-          type: executionResult.success ? "profit" : "loss",
+          type: alertType,
           strategy: selected.strategy.name,
           amount: executionResult.profitLoss,
           details: executionResult.notes,
@@ -215,31 +324,48 @@ export class AgentController extends EventEmitter {
     }
   }
 
-  private async reviewAndLearn(): Promise<void> {
+  private async runLearningCycle(): Promise<void> {
     try {
-      const recentDecisions = this.memory.recall("decisions", 20);
-      if (recentDecisions.length === 0) return;
-
-      const messages: LLMMessage[] = [
-        {
-          role: "system",
-          content:
-            "You are an AI agent reviewing past decisions. Analyze the patterns and suggest improvements. Be concise.",
-        },
-        {
-          role: "user",
-          content: `Review these recent observations and extract useful patterns:\n${recentDecisions
-            .map((d) => d.content)
-            .join("\n")}`,
-        },
-      ];
-
-      const response = await chat(messages, { temperature: 0.5 });
-      this.memory.remember("learning", response.content);
-      logger.info("Learning review completed");
+      const insights = await this.learningSystem.runLearningCycle();
+      if (insights.length > 0) {
+        this.emit("alert", {
+          type: "learning_complete",
+          message: `Learning cycle completed: ${insights.length} insights extracted`,
+        });
+      }
     } catch (error) {
-      logger.error("Learning review failed", {
+      logger.error("Learning cycle failed", {
         error: (error as Error).message,
+      });
+    }
+  }
+
+  private async checkBalance(): Promise<void> {
+    try {
+      const balance = await this.wallet.getBalance();
+      this.riskManager.updateBalance(balance);
+
+      if (balance < LOW_BALANCE_THRESHOLD) {
+        this.emit("alert", {
+          type: "low_balance",
+          message: `Low balance warning: ${balance.toFixed(4)} SOL`,
+          amount: balance,
+        });
+      }
+    } catch (error) {
+      logger.error("Balance check failed", {
+        error: (error as Error).message,
+      });
+    }
+  }
+
+  private checkHealth(): void {
+    const timeSinceLastCycle = Date.now() - this.lastSuccessfulCycle;
+    if (timeSinceLastCycle > HEALTH_CHECK_TIMEOUT_MS && this.running) {
+      logger.error("Agent appears stuck - no successful cycle in 10 minutes");
+      this.emit("alert", {
+        type: "error",
+        message: `Agent health warning: no successful cycle in ${Math.floor(timeSinceLastCycle / 60000)} minutes`,
       });
     }
   }
