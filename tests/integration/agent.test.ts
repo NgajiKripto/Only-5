@@ -327,11 +327,15 @@ describe("AgentController Integration", () => {
       } else {
         // Strategy may have been risk-blocked due to shared DB state
         // Verify priority manager works by calling recordFailure directly
+        const prioritiesBefore = agent.getPriorityManager().getPrioritizedStrategies();
+        const recordBefore = prioritiesBefore.find((p) => p.strategy === "fail_strat");
+        const failuresBefore = recordBefore?.consecutiveFailures ?? 0;
+
         agent.getPriorityManager().recordFailure("fail_strat");
         const priorities = agent.getPriorityManager().getPrioritizedStrategies();
         const record = priorities.find((p) => p.strategy === "fail_strat");
         expect(record).toBeDefined();
-        expect(record!.consecutiveFailures).toBe(1);
+        expect(record!.consecutiveFailures).toBe(failuresBefore + 1);
       }
     });
 
