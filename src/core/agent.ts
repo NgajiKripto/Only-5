@@ -6,6 +6,8 @@ import { Scheduler } from "./scheduler.js";
 import { WalletManager } from "./wallet.js";
 import { RiskManager, type RiskLimits, type TradeCheck } from "./risk.js";
 import { LearningSystem } from "./learning.js";
+import { StrategyPriorityManager } from "./strategy-priority.js";
+import { FallbackSystem } from "./fallback.js";
 import { chat } from "../integrations/openrouter.js";
 import type {
   AgentState,
@@ -13,6 +15,7 @@ import type {
   StrategyResult,
   LLMMessage,
 } from "../types/index.js";
+import { PriorityTier } from "../types/index.js";
 
 const logger = createLogger("agent");
 
@@ -30,6 +33,9 @@ export class AgentController extends EventEmitter {
   private scheduler: Scheduler;
   private riskManager!: RiskManager;
   private learningSystem!: LearningSystem;
+  private priorityManager!: StrategyPriorityManager;
+  private fallbackSystem!: FallbackSystem;
+  private currentEvalIntervalSeconds: number = 30;
   private strategies: Map<string, Strategy> = new Map();
   private status: AgentState["status"] = "idle";
   private startTime: number = 0;
@@ -64,6 +70,14 @@ export class AgentController extends EventEmitter {
 
   getLearningSystem(): LearningSystem {
     return this.learningSystem;
+  }
+
+  getPriorityManager(): StrategyPriorityManager {
+    return this.priorityManager;
+  }
+
+  getFallbackSystem(): FallbackSystem {
+    return this.fallbackSystem;
   }
 
   registerStrategy(strategy: Strategy): void {
@@ -104,10 +118,32 @@ export class AgentController extends EventEmitter {
       memory: this.memory,
     });
 
-    // Register the main evaluation loop (every 30 seconds)
+    // Initialize priority manager
+    this.priorityManager = new StrategyPriorityManager({
+      memory: this.memory,
+    });
+
+    // Initialize fallback system
+    this.fallbackSystem = new FallbackSystem({
+      memory: this.memory,
+      onModeChange: (oldMode, newMode) => {
+        this.emit("alert", {
+          type: "mode_change",
+          message: `Operating mode changed: ${oldMode} -> ${newMode}`,
+        });
+      },
+    });
+
+    // Load priority data and set initial mode
+    this.priorityManager.loadFromDatabase();
+    this.fallbackSystem.checkAndUpdateMode();
+    this.currentEvalIntervalSeconds =
+      this.fallbackSystem.getEvaluationIntervalSeconds();
+
+    // Register the main evaluation loop (dynamic interval)
     this.scheduler.registerTask(
       "evaluate-strategies",
-      "*/30 * * * * *",
+      `*/${this.currentEvalIntervalSeconds} * * * * *`,
       async () => {
         if (this.status === "executing") return;
         await this.evaluateStrategies();
@@ -152,6 +188,36 @@ export class AgentController extends EventEmitter {
       this.checkHealth();
     });
 
+    // Priority recalculation every 30 minutes
+    this.scheduler.registerTask("priority-recalculation", "*/30 * * * *", () => {
+      const strategyNames = Array.from(this.strategies.keys());
+      this.priorityManager.recalculateAll(strategyNames);
+    });
+
+    // Fallback mode check every 10 minutes
+    this.scheduler.registerTask("fallback-check", "*/10 * * * *", () => {
+      const oldInterval = this.currentEvalIntervalSeconds;
+      this.fallbackSystem.checkAndUpdateMode();
+      const newInterval = this.fallbackSystem.getEvaluationIntervalSeconds();
+
+      if (newInterval !== oldInterval) {
+        this.currentEvalIntervalSeconds = newInterval;
+        // Re-register evaluate-strategies with new interval
+        this.scheduler.removeTask("evaluate-strategies");
+        this.scheduler.registerTask(
+          "evaluate-strategies",
+          `*/${newInterval} * * * * *`,
+          async () => {
+            if (this.status === "executing") return;
+            await this.evaluateStrategies();
+          }
+        );
+        logger.info(
+          `Evaluation interval changed: ${oldInterval}s -> ${newInterval}s`
+        );
+      }
+    });
+
     this.scheduler.startAll();
     this.lastSuccessfulCycle = Date.now();
     this.emit("started");
@@ -191,31 +257,77 @@ export class AgentController extends EventEmitter {
     this.status = "evaluating";
     this.lastSuccessfulCycle = Date.now();
 
+    const confidenceThreshold = this.fallbackSystem.getConfidenceThreshold();
+    const skipLowPriority = this.fallbackSystem.shouldSkipLowPriority();
+    const prioritizedStrategies =
+      this.priorityManager.getPrioritizedStrategies();
+
     const opportunities: Array<{
       strategy: Strategy;
       result: StrategyResult;
+      priority: { tier: PriorityTier; score: number };
     }> = [];
 
     for (const [name, strategy] of this.strategies) {
       if (!strategy.enabled) continue;
 
+      // Check priority tier - skip low/dormant in normal mode
+      if (skipLowPriority) {
+        const priorityRecord = prioritizedStrategies.find(
+          (p) => p.strategy === name
+        );
+        if (
+          priorityRecord &&
+          (priorityRecord.tier === PriorityTier.LOW ||
+            priorityRecord.tier === PriorityTier.DORMANT)
+        ) {
+          continue;
+        }
+      }
+
       try {
         const result = await strategy.evaluate();
-        if (result && result.confidence > 0.5) {
-          opportunities.push({ strategy, result });
+        if (result && result.confidence > confidenceThreshold) {
+          const priorityRecord = prioritizedStrategies.find(
+            (p) => p.strategy === name
+          );
+          opportunities.push({
+            strategy,
+            result,
+            priority: {
+              tier: priorityRecord?.tier ?? PriorityTier.MEDIUM,
+              score: priorityRecord?.score ?? 0.5,
+            },
+          });
           logger.info(`Opportunity found: ${name}`, {
             confidence: result.confidence,
             expectedReward: result.expectedReward,
+            tier: priorityRecord?.tier ?? "MEDIUM",
           });
         }
       } catch (error) {
         logger.error(`Strategy "${name}" evaluation failed`, {
           error: (error as Error).message,
         });
+        // Track evaluation failure
+        this.priorityManager.recordFailure(name);
       }
     }
 
     if (opportunities.length > 0) {
+      // Sort by priority tier then score before execution
+      opportunities.sort((a, b) => {
+        const tierOrder: Record<PriorityTier, number> = {
+          [PriorityTier.CRITICAL]: 0,
+          [PriorityTier.HIGH]: 1,
+          [PriorityTier.MEDIUM]: 2,
+          [PriorityTier.LOW]: 3,
+          [PriorityTier.DORMANT]: 4,
+        };
+        const tierDiff = tierOrder[a.priority.tier] - tierOrder[b.priority.tier];
+        if (tierDiff !== 0) return tierDiff;
+        return b.priority.score - a.priority.score;
+      });
       await this.executeOpportunity(opportunities);
     } else {
       this.status = "idle";
@@ -223,7 +335,11 @@ export class AgentController extends EventEmitter {
   }
 
   private async executeOpportunity(
-    opportunities: Array<{ strategy: Strategy; result: StrategyResult }>
+    opportunities: Array<{
+      strategy: Strategy;
+      result: StrategyResult;
+      priority: { tier: PriorityTier; score: number };
+    }>
   ): Promise<void> {
     this.status = "executing";
 
@@ -236,14 +352,14 @@ export class AgentController extends EventEmitter {
           {
             role: "system",
             content:
-              "You are an AI agent evaluating trading opportunities. Respond with only the index (0-based) of the best opportunity to execute, considering risk/reward ratio and confidence.",
+              "You are an AI agent evaluating trading opportunities. Respond with only the index (0-based) of the best opportunity to execute, considering risk/reward ratio, confidence, and priority tier.",
           },
           {
             role: "user",
             content: `Choose the best opportunity:\n${opportunities
               .map(
                 (o, i) =>
-                  `${i}. ${o.strategy.name}: ${o.result.opportunity} (confidence: ${o.result.confidence}, expected reward: ${o.result.expectedReward}, risk: ${o.result.risk})`
+                  `${i}. ${o.strategy.name}: ${o.result.opportunity} (confidence: ${o.result.confidence}, reward: ${o.result.expectedReward}, risk: ${o.result.risk}, tier: ${o.priority.tier}, priority_score: ${o.priority.score.toFixed(2)})`
               )
               .join("\n")}`,
           },
@@ -314,6 +430,13 @@ export class AgentController extends EventEmitter {
         exposureAmount,
         executionResult.profitLoss
       );
+
+      // Track priority
+      if (executionResult.success && executionResult.profitLoss > 0) {
+        this.priorityManager.recordSuccess(selected.strategy.name);
+      } else {
+        this.priorityManager.recordFailure(selected.strategy.name);
+      }
 
       this.lastAction = `${selected.strategy.name}: ${selected.result.opportunity}`;
 
