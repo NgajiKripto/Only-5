@@ -1,0 +1,208 @@
+import { createLogger } from "./logger.js";
+import type { MemorySystem } from "./memory.js";
+
+const logger = createLogger("mcp");
+
+export interface MCPAction {
+  tool: string;
+  params: Record<string, unknown>;
+  strategy: string;
+}
+
+export interface MCPResult {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+  executionTimeMs: number;
+}
+
+export interface MCPConfig {
+  defaultTimeoutMs?: number;
+  maxRatePerMinute?: number;
+  auditEnabled?: boolean;
+}
+
+const SHELL_INJECTION_PATTERNS = /[;`|]|&&|\$\(|\$\{/;
+
+export class MCPExecutionLayer {
+  private allowedTools: Map<string, Set<string>> = new Map();
+  private rateLimitWindows: Map<string, number[]> = new Map();
+  private config: Required<MCPConfig>;
+  private memory: MemorySystem;
+
+  constructor(config: MCPConfig, memory: MemorySystem) {
+    this.config = {
+      defaultTimeoutMs: config.defaultTimeoutMs ?? 30000,
+      maxRatePerMinute: config.maxRatePerMinute ?? 30,
+      auditEnabled: config.auditEnabled ?? true,
+    };
+    this.memory = memory;
+    logger.info("MCP Execution Layer initialized", {
+      timeout: this.config.defaultTimeoutMs,
+      rateLimit: this.config.maxRatePerMinute,
+    });
+  }
+
+  registerStrategy(strategyName: string, allowedTools: string[]): void {
+    this.allowedTools.set(strategyName, new Set(allowedTools));
+    logger.info(`Registered strategy: ${strategyName}`, {
+      tools: allowedTools,
+    });
+  }
+
+  async execute(action: MCPAction): Promise<MCPResult> {
+    const startTime = Date.now();
+
+    // Validate action
+    if (!action.tool || action.tool.trim() === "") {
+      return {
+        success: false,
+        error: "Tool name must not be empty",
+        executionTimeMs: Date.now() - startTime,
+      };
+    }
+
+    // Check strategy registration
+    const allowed = this.allowedTools.get(action.strategy);
+    if (!allowed) {
+      const result: MCPResult = {
+        success: false,
+        error: `Strategy '${action.strategy}' is not registered`,
+        executionTimeMs: Date.now() - startTime,
+      };
+      this.audit(action, result);
+      return result;
+    }
+
+    // Check tool permission
+    if (!allowed.has(action.tool)) {
+      const result: MCPResult = {
+        success: false,
+        error: `Strategy '${action.strategy}' is not allowed to use tool '${action.tool}'`,
+        executionTimeMs: Date.now() - startTime,
+      };
+      this.audit(action, result);
+      return result;
+    }
+
+    // Rate limiting
+    if (!this.checkRateLimit(action.strategy)) {
+      const result: MCPResult = {
+        success: false,
+        error: `Rate limit exceeded for strategy '${action.strategy}'`,
+        executionTimeMs: Date.now() - startTime,
+      };
+      this.audit(action, result);
+      return result;
+    }
+
+    // Input sanitization
+    const sanitizationError = this.sanitizeInputs(action.params);
+    if (sanitizationError) {
+      const result: MCPResult = {
+        success: false,
+        error: sanitizationError,
+        executionTimeMs: Date.now() - startTime,
+      };
+      this.audit(action, result);
+      return result;
+    }
+
+    // Execute with timeout
+    try {
+      const result = await this.executeWithTimeout(action);
+      const mcpResult: MCPResult = {
+        success: true,
+        data: result,
+        executionTimeMs: Date.now() - startTime,
+      };
+      this.audit(action, mcpResult);
+      return mcpResult;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      const mcpResult: MCPResult = {
+        success: false,
+        error: errorMessage,
+        executionTimeMs: Date.now() - startTime,
+      };
+      this.audit(action, mcpResult);
+      return mcpResult;
+    }
+  }
+
+  getAuditLog(limit?: number): Array<{ id: string; timestamp: number; category: string; content: string }> {
+    return this.memory.recall("mcp_audit", limit ?? 50);
+  }
+
+  private checkRateLimit(strategy: string): boolean {
+    const now = Date.now();
+    const window = this.rateLimitWindows.get(strategy) ?? [];
+    const filtered = window.filter((t) => now - t < 60000);
+
+    if (filtered.length >= this.config.maxRatePerMinute) {
+      return false;
+    }
+
+    filtered.push(now);
+    this.rateLimitWindows.set(strategy, filtered);
+    return true;
+  }
+
+  private sanitizeInputs(params: Record<string, unknown>): string | null {
+    for (const [key, value] of Object.entries(params)) {
+      if (typeof value === "string" && SHELL_INJECTION_PATTERNS.test(value)) {
+        return `Input sanitization failed: suspicious pattern detected in parameter '${key}'`;
+      }
+      if (typeof value === "object" && value !== null) {
+        const nested = this.sanitizeInputs(value as Record<string, unknown>);
+        if (nested) return nested;
+      }
+    }
+    return null;
+  }
+
+  private async executeWithTimeout(action: MCPAction): Promise<unknown> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, this.config.defaultTimeoutMs);
+
+    try {
+      const result = await new Promise<unknown>((resolve, reject) => {
+        controller.signal.addEventListener("abort", () => {
+          reject(new Error("Execution timed out"));
+        });
+        // Simulate execution - in a real system this would dispatch to tool handlers
+        resolve({ tool: action.tool, params: action.params });
+      });
+      return result;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  private audit(action: MCPAction, result: MCPResult): void {
+    if (!this.config.auditEnabled) return;
+
+    const entry = JSON.stringify({
+      action: {
+        tool: action.tool,
+        strategy: action.strategy,
+        params: action.params,
+      },
+      result: {
+        success: result.success,
+        error: result.error,
+        executionTimeMs: result.executionTimeMs,
+      },
+    });
+
+    this.memory.remember("mcp_audit", entry);
+    logger.debug("MCP audit logged", {
+      tool: action.tool,
+      strategy: action.strategy,
+      success: result.success,
+    });
+  }
+}
