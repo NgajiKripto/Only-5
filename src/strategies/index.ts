@@ -8,6 +8,8 @@ import { AirdropStrategy } from "./airdrop.js";
 import { BountyStrategy } from "./bounty.js";
 import { ContentStrategy } from "./content.js";
 import { MicrotaskStrategy } from "./microtask.js";
+import { SecurityBountyStrategy } from "./security-bounty.js";
+import { SecurityServiceStrategy } from "./security-service.js";
 
 export { BaseStrategy, type StrategyDependencies } from "./base.js";
 export { OnchainStrategy } from "./onchain.js";
@@ -15,6 +17,8 @@ export { AirdropStrategy } from "./airdrop.js";
 export { BountyStrategy } from "./bounty.js";
 export { ContentStrategy } from "./content.js";
 export { MicrotaskStrategy } from "./microtask.js";
+export { SecurityBountyStrategy } from "./security-bounty.js";
+export { SecurityServiceStrategy } from "./security-service.js";
 
 export interface StrategyFactoryDeps {
   llm?: typeof chat;
@@ -49,6 +53,12 @@ export function createStrategies(
 
   const microtask = new MicrotaskStrategy(baseDeps);
   strategies.set(microtask.name, microtask);
+
+  const securityBounty = new SecurityBountyStrategy(baseDeps);
+  strategies.set(securityBounty.name, securityBounty);
+
+  const securityService = new SecurityServiceStrategy(baseDeps);
+  strategies.set(securityService.name, securityService);
 
   return strategies;
 }
