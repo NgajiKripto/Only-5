@@ -82,7 +82,8 @@ describe("SecurityServiceStrategy", () => {
 
   describe("addScanRequest", () => {
     it("should add a scan request to the queue", () => {
-      strategy.addScanRequest(123, "https://example.com", "url");
+      const result = strategy.addScanRequest(123, "https://example.com", "url");
+      expect(result).toBe(true);
       const queue = strategy.getScanQueue();
       expect(queue).toHaveLength(1);
       expect(queue[0].chatId).toBe(123);
@@ -95,6 +96,15 @@ describe("SecurityServiceStrategy", () => {
       strategy.addScanRequest(1, "https://a.com", "url");
       strategy.addScanRequest(2, "contract_source_code", "contract");
       expect(strategy.getScanQueue()).toHaveLength(2);
+    });
+
+    it("should reject requests when queue is full", () => {
+      for (let i = 0; i < 50; i++) {
+        strategy.addScanRequest(i, `https://target${i}.com`, "url");
+      }
+      const result = strategy.addScanRequest(999, "https://overflow.com", "url");
+      expect(result).toBe(false);
+      expect(strategy.getScanQueue()).toHaveLength(50);
     });
   });
 
@@ -144,7 +154,7 @@ describe("SecurityServiceStrategy", () => {
 
       const result = await strategy.execute(opportunity);
       expect(result.success).toBe(true);
-      expect(result.profitLoss).toBe(0.1);
+      expect(result.profitLoss).toBe(0);
       expect(result.notes).toContain("Scan complete for https://target.com");
     });
 
@@ -170,7 +180,7 @@ describe("SecurityServiceStrategy", () => {
 
       const result = await strategy.execute(opportunity);
       expect(result.success).toBe(true);
-      expect(result.profitLoss).toBe(0.1);
+      expect(result.profitLoss).toBe(0);
     });
 
     it("should store completed scans", async () => {

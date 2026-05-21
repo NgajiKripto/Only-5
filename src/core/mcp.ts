@@ -3,6 +3,8 @@ import type { MemorySystem } from "./memory.js";
 
 const logger = createLogger("mcp");
 
+export type ToolHandler = (params: Record<string, unknown>) => Promise<unknown>;
+
 export interface MCPAction {
   tool: string;
   params: Record<string, unknown>;
@@ -26,6 +28,7 @@ const SHELL_INJECTION_PATTERNS = /[;`|]|&&|\$\(|\$\{/;
 
 export class MCPExecutionLayer {
   private allowedTools: Map<string, Set<string>> = new Map();
+  private toolHandlers: Map<string, ToolHandler> = new Map();
   private rateLimitWindows: Map<string, number[]> = new Map();
   private config: Required<MCPConfig>;
   private memory: MemorySystem;
@@ -48,6 +51,11 @@ export class MCPExecutionLayer {
     logger.info(`Registered strategy: ${strategyName}`, {
       tools: allowedTools,
     });
+  }
+
+  registerTool(name: string, handler: ToolHandler): void {
+    this.toolHandlers.set(name, handler);
+    logger.info(`Registered tool handler: ${name}`);
   }
 
   async execute(action: MCPAction): Promise<MCPResult> {
@@ -137,6 +145,17 @@ export class MCPExecutionLayer {
 
   private checkRateLimit(strategy: string): boolean {
     const now = Date.now();
+
+    // Prune all rate-limit windows to prevent unbounded growth
+    for (const [key, window] of this.rateLimitWindows) {
+      const pruned = window.filter((t) => now - t < 60000);
+      if (pruned.length === 0) {
+        this.rateLimitWindows.delete(key);
+      } else if (pruned.length !== window.length) {
+        this.rateLimitWindows.set(key, pruned);
+      }
+    }
+
     const window = this.rateLimitWindows.get(strategy) ?? [];
     const filtered = window.filter((t) => now - t < 60000);
 
@@ -169,12 +188,20 @@ export class MCPExecutionLayer {
     }, this.config.defaultTimeoutMs);
 
     try {
+      const handler = this.toolHandlers.get(action.tool);
+
       const result = await new Promise<unknown>((resolve, reject) => {
         controller.signal.addEventListener("abort", () => {
           reject(new Error("Execution timed out"));
         });
-        // Simulate execution - in a real system this would dispatch to tool handlers
-        resolve({ tool: action.tool, params: action.params });
+
+        if (handler) {
+          // Dispatch to the registered tool handler
+          handler(action.params).then(resolve, reject);
+        } else {
+          // No handler registered - return action metadata as a no-op fallback
+          resolve({ tool: action.tool, params: action.params, dispatched: false });
+        }
       });
       return result;
     } finally {

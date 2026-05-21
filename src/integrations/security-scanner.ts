@@ -220,6 +220,9 @@ export class SecurityScanner {
   }
 
   async detectVulnerabilities(url: string): Promise<Finding[]> {
+    // DISCLAIMER: This method performs active scanning (probing sensitive paths,
+    // checking for open redirects, etc.) against the target URL. Only use this
+    // against targets the operator has explicit permission to test.
     const findings: Finding[] = [];
 
     // Check for open redirects
@@ -319,6 +322,25 @@ export class SecurityScanner {
   ): Promise<Finding[]> {
     const findings: Finding[] = [];
 
+    // Content length guard to prevent abuse and excessive token usage
+    const MAX_PROGRAM_LENGTH = 50000;
+    if (programSource.length > MAX_PROGRAM_LENGTH) {
+      findings.push({
+        type: "input_error",
+        severity: SeverityLevel.INFO,
+        title: "Program source too large",
+        description: `Program source exceeds maximum length of ${MAX_PROGRAM_LENGTH} characters.`,
+      });
+      return findings;
+    }
+
+    // Strip common prompt injection patterns and directives
+    const sanitizedSource = programSource
+      .replace(/```[\s\S]*?```/g, (match) => match) // keep code blocks as-is
+      .replace(/^(IGNORE|DISREGARD|FORGET|OVERRIDE|SYSTEM|ASSISTANT)[\s:].*$/gim, "")
+      .replace(/<\/?[a-z][^>]*>/gi, "") // strip HTML/XML tags
+      .replace(/\[INST\]|\[\/INST\]|\<\|im_start\|\>|\<\|im_end\|\>/g, ""); // strip common LLM control tokens
+
     const messages: LLMMessage[] = [
       {
         role: "system",
@@ -326,7 +348,7 @@ export class SecurityScanner {
       },
       {
         role: "user",
-        content: programSource,
+        content: sanitizedSource,
       },
     ];
 

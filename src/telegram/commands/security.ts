@@ -1,11 +1,15 @@
 import type { Context } from "grammy";
 import type { AgentController } from "../../core/agent.js";
 
+const MAX_SCAN_QUEUE_SIZE = 50;
+
 export function registerSecurityCommands(
   bot: { command: (cmd: string, handler: (ctx: Context) => Promise<void>) => void },
   agent: AgentController
 ): void {
   // Register /scan command
+  // Note: Authorization is enforced by the Telegram middleware in src/telegram/index.ts
+  // which checks bot.isAuthorized(chatId) before passing control to command handlers.
   bot.command("scan", async (ctx: Context) => {
     const text = ctx.message?.text || "";
     const target = text.replace("/scan", "").trim();
@@ -23,10 +27,8 @@ export function registerSecurityCommands(
       return;
     }
 
-    // Get security-service strategy from agent
-    const agentAny = agent as any;
-    const strategiesMap: Map<string, any> = agentAny.strategies;
-    const securityService = strategiesMap?.get("security-service");
+    // Get security-service strategy from agent via public accessor
+    const securityService = agent.getStrategy("security-service") as any;
 
     if (!securityService || !securityService.addScanRequest) {
       await ctx.reply("Security scanning service is not available.");
@@ -36,22 +38,27 @@ export function registerSecurityCommands(
     const chatId = ctx.chat?.id;
     if (!chatId) return;
 
+    // Check queue capacity before adding
+    const currentQueue = securityService.getScanQueue?.() ?? [];
+    if (currentQueue.length >= MAX_SCAN_QUEUE_SIZE) {
+      await ctx.reply("Scan queue is full. Please try again later.");
+      return;
+    }
+
     // Queue the scan
     securityService.addScanRequest(chatId, target, "url");
     const price = securityService.getPricePerScan?.() ?? 0.1;
     const queueSize = securityService.getScanQueue?.()?.length ?? 1;
 
     await ctx.reply(
-      `Scan queued for: ${target}\nPrice: ${price} SOL\nPosition in queue: ${queueSize}\n\nYou will receive results when the scan completes.`,
+      `Scan queued for: ${target}\nPrice: ${price} SOL\nPosition in queue: ${queueSize}\n\nNote: This scan will actively probe the target URL (headers, ports, paths). Only scan targets you have permission to test.\n\nYou will receive results when the scan completes.`,
       { parse_mode: "HTML" }
     );
   });
 
   // Register /bounties command
   bot.command("bounties", async (ctx: Context) => {
-    const agentAny = agent as any;
-    const strategiesMap: Map<string, any> = agentAny.strategies;
-    const secBounty = strategiesMap?.get("security-bounty");
+    const secBounty = agent.getStrategy("security-bounty") as any;
 
     if (!secBounty) {
       await ctx.reply("Security bounty strategy is not active.");
@@ -95,11 +102,8 @@ export function registerSecurityCommands(
 
   // Register /security command
   bot.command("security", async (ctx: Context) => {
-    const agentAny = agent as any;
-    const strategiesMap: Map<string, any> = agentAny.strategies;
-
-    const secBounty = strategiesMap?.get("security-bounty");
-    const secService = strategiesMap?.get("security-service");
+    const secBounty = agent.getStrategy("security-bounty") as any;
+    const secService = agent.getStrategy("security-service") as any;
 
     const bountyPerf = secBounty?.getPerformance?.() ?? { totalActions: 0, successRate: 0, totalReward: 0 };
     const servicePerf = secService?.getPerformance?.() ?? { totalActions: 0, successRate: 0, totalReward: 0 };

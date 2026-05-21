@@ -23,6 +23,8 @@ interface CompletedScan {
   completedAt: number;
 }
 
+const MAX_QUEUE_SIZE = 50;
+
 export class SecurityServiceStrategy extends BaseStrategy {
   name = "security-service";
   description =
@@ -46,13 +48,17 @@ export class SecurityServiceStrategy extends BaseStrategy {
     chatId: number,
     target: string,
     type: "url" | "contract"
-  ): void {
+  ): boolean {
+    if (this.scanQueue.length >= MAX_QUEUE_SIZE) {
+      return false;
+    }
     this.scanQueue.push({
       chatId,
       target,
       type,
       requestedAt: Date.now(),
     });
+    return true;
   }
 
   getScanQueue(): ScanRequest[] {
@@ -166,8 +172,9 @@ export class SecurityServiceStrategy extends BaseStrategy {
 
       return {
         success: true,
-        profitLoss: this.pricePerScan,
-        notes: `Scan complete for ${request.target}: ${scanResult.summary}. ${reportSummary.substring(0, 500)}`,
+        // TODO: Payment verification pending - profitLoss is 0 until SOL payment is confirmed
+        profitLoss: 0,
+        notes: `Scan complete for ${request.target}: ${scanResult.summary}. ${reportSummary.substring(0, 500)}. Payment pending verification.`,
       };
     } catch (error) {
       this.logger.error("Security service scan failed", {

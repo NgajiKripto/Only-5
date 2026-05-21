@@ -73,6 +73,7 @@ function createMockAgent(dbPath: string) {
     getMemory: () => memory,
     getWallet: () => mockWallet,
     getScheduler: () => mockScheduler,
+    getStrategy: (name: string) => strategies.get(name),
     strategies,
     on: vi.fn(),
     emit: vi.fn(),
@@ -448,6 +449,37 @@ describe("Telegram Commands", () => {
       expect(message).toContain("Scan queued for: https://example.com");
       expect(message).toContain("0.1 SOL");
       expect(message).toContain("Position in queue: 1");
+    });
+
+    it("should reject when queue is full", async () => {
+      const { registerSecurityCommands } = await import("../../src/telegram/commands/security.js");
+
+      // Add security-service mock with full queue
+      const fullQueue = Array.from({ length: 50 }, (_, i) => ({ target: `https://target${i}.com` }));
+      const mockSecurityService = {
+        addScanRequest: vi.fn(),
+        getPricePerScan: vi.fn().mockReturnValue(0.1),
+        getScanQueue: vi.fn().mockReturnValue(fullQueue),
+      };
+      agent.strategies.set("security-service", mockSecurityService);
+
+      const ctx = createMockContext();
+      ctx.message.text = "/scan https://example.com";
+      let scanHandler: ((ctx: any) => Promise<void>) | null = null;
+
+      const mockBot = {
+        command: (cmd: string, handler: (ctx: any) => Promise<void>) => {
+          if (cmd === "scan") scanHandler = handler;
+        },
+      };
+
+      registerSecurityCommands(mockBot as any, agent);
+      await scanHandler!(ctx);
+
+      expect(mockSecurityService.addScanRequest).not.toHaveBeenCalled();
+      expect(ctx.reply).toHaveBeenCalledTimes(1);
+      const message = ctx.reply.mock.calls[0][0] as string;
+      expect(message).toContain("queue is full");
     });
   });
 
