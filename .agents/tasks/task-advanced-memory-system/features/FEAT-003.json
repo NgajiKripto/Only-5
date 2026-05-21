@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "feat",
   "description": "Add comprehensive tests for the advanced memory system covering all new modules",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "Step 1: Create tests/core/memory/storage.test.ts - Test MemoryStorage: table creation, migration, CRUD operations for memory_entries (insert, get by tier, get by id, update), knowledge graph tables (add node, add edge, query), consolidation_log. Verify backward compatibility with existing tables.",
     "Step 2: Create tests/core/memory/embedding.test.ts - Test EmbeddingService: local TF-IDF fallback generates vectors of correct dimension, cosineSimilarity returns 1.0 for identical vectors and 0 for orthogonal. Mock OpenRouter for API embedding tests.",
@@ -27,5 +27,5 @@
     "source ~/.nvm/nvm.sh && nvm use 24 && npx vitest run"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 92 new tests pass across 7 new test files. Updated memory.test.ts adds 5 new tests (22 total). Full suite: 352 tests pass. The privacy filter base58 regex matches before hex regex for strings that overlap, so tests use hex chars with '0' to avoid conflicts."
 }
