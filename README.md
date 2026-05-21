@@ -50,7 +50,7 @@ src/
 
 ## Prerequisites
 
-- **Node.js** 22+ (recommended: 24)
+- **Node.js** 24+
 - **Solana wallet** with a funded private key (minimum 0.1 SOL for rent)
 - **Telegram bot token** from [@BotFather](https://t.me/BotFather)
 - **OpenRouter API key** from [openrouter.ai](https://openrouter.ai)
