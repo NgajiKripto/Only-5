@@ -1,252 +1,363 @@
+<div align="center">
+
 # Only-5
 
-**Autonomous money-making agent starting with $5 of SOL**
+### Autonomous Revenue Agent for Solana
 
-Only-5 is a self-improving autonomous agent that uses multiple strategies to grow a starting balance of $5 in SOL. It combines on-chain trading, bounty hunting, content creation, and microtask completion with an AI-powered learning loop that adapts its behavior over time.
+**Turn $5 into a self-sustaining income stream. No human intervention required.**
 
-## Features
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-22+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Solana](https://img.shields.io/badge/Solana-Mainnet-9945FF?style=flat-square&logo=solana&logoColor=white)](https://solana.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
+[![Tests](https://img.shields.io/badge/Tests-217%20passing-success?style=flat-square)]()
 
-- **Multi-strategy revenue generation** - On-chain trading, GitHub bounties, airdrop farming, content creation, microtask platforms
-- **Self-improving AI loop** - Periodically reviews past decisions, extracts patterns, and adjusts strategy parameters
-- **Risk management** - Configurable daily loss limits, trade size caps, cooldown periods, and minimum balance protection
-- **Telegram control interface** - Monitor, control, and receive alerts via Telegram bot
-- **Persistent memory** - SQLite-backed decision history, learnings, and performance tracking
-- **Graceful operation** - Handles crashes, restarts, and shutdowns without losing state
+---
+
+*An AI-powered agent that autonomously discovers, evaluates, and executes revenue opportunities across multiple strategies on the Solana blockchain.*
+
+[Quick Start](#quick-start) · [Strategies](#strategies) · [Architecture](#architecture) · [Deployment](#deployment) · [Configuration](#configuration)
+
+</div>
+
+---
+
+## Overview
+
+Only-5 is a fully autonomous agent that operates 24/7 on a VPS, starting with just **$5 worth of SOL**. It uses LLM-guided decision making to identify and execute revenue opportunities across multiple domains — from on-chain arbitrage to security bounty hunting to paid scanning services.
+
+The agent learns from every action it takes. A self-improvement loop analyzes past decisions every 6 hours, extracts patterns, and adjusts strategy confidence scores. Over time, it converges on the most profitable strategies for current market conditions.
+
+### Key Capabilities
+
+| Capability | Description |
+|:-----------|:------------|
+| **Multi-Strategy Engine** | 7 revenue strategies operating in parallel, each with independent risk profiles |
+| **Self-Improvement** | LLM-driven learning cycle extracts patterns from decision history |
+| **Risk Management** | Daily loss limits, position sizing, exposure caps, cooldown periods |
+| **MCP Execution Layer** | All actions pass through a controlled gatekeeper with audit trail |
+| **Security Scanner** | Built-in vulnerability assessment for paid scanning services |
+| **Telegram Interface** | Full monitoring, control, and alert system via bot commands |
+| **Persistent Memory** | SQLite-backed decision history, skills, and observations |
+
+---
+
+## How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                          Only-5 Agent Loop                           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    │
+│   │ Evaluate │───>│   Rank   │───>│   Risk   │───>│ Execute  │    │
+│   │Strategies│    │  (LLM)   │    │  Check   │    │          │    │
+│   └──────────┘    └──────────┘    └──────────┘    └──────────┘    │
+│         │                                               │          │
+│         │              ┌──────────┐                     │          │
+│         └──────────────│  Learn   │<────────────────────┘          │
+│                        │ (6h loop)│                                 │
+│                        └──────────┘                                 │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────┤
+│  MCP Execution Layer: Permission · Rate Limit · Sanitize · Audit   │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+Every 30 seconds, the agent:
+
+1. **Evaluates** all enabled strategies for opportunities
+2. **Ranks** opportunities using LLM analysis (confidence, reward, risk)
+3. **Validates** against risk manager (daily limits, exposure caps, cooldowns)
+4. **Executes** through the MCP gatekeeper with full audit logging
+5. **Records** outcomes for the learning system to analyze
+
+---
+
+## Strategies
+
+### Revenue Strategies
+
+| Strategy | Type | Risk | Min Balance | Description |
+|:---------|:-----|:-----|:------------|:------------|
+| `onchain` | Trading | HIGH | 0.1 SOL | Round-trip arbitrage via Jupiter DEX with retry logic |
+| `airdrop` | Farming | LOW | 0.05 SOL | Automated DeFi interactions to qualify for token airdrops |
+| `security-bounty` | Bounty | LOW | 0 SOL | Scan targets on HackerOne, Immunefi, Code4rena for vulnerabilities |
+| `security-service` | Service | LOW | 0 SOL | Paid security scanning service via Telegram (SOL per scan) |
+| `github-bounty` | Bounty | LOW | 0 SOL | Find and assess GitHub issues with bounty rewards |
+| `content` | Creation | LOW | 0 SOL | Generate crypto/DeFi analysis content for monetization |
+| `microtask` | Tasks | LOW | 0 SOL | Complete paid micro-tasks on crypto-native platforms |
+
+### Strategy Lifecycle
+
+```
+Disabled ──> Enabled ──> Evaluating ──> Opportunity Found ──> Risk Check ──> Execute ──> Record
+                ^                                                                          │
+                └──────────────────── Learning Loop Adjusts ───────────────────────────────┘
+```
+
+---
 
 ## Architecture
 
 ```
 src/
-├── index.ts              # Entry point - bootstrap and signal handling
-├── config.ts             # Environment validation with Zod
 ├── core/
-│   ├── agent.ts          # Main agent loop and orchestration
-│   ├── learning.ts       # Self-improvement / learning cycle
-│   ├── risk.ts           # Risk management module
-│   ├── memory.ts         # SQLite persistence layer
+│   ├── agent.ts          # Main orchestration loop (30s cycle)
+│   ├── mcp.ts            # MCP execution layer (gatekeeper)
+│   ├── risk.ts           # Risk management (limits, exposure, cooldown)
+│   ├── learning.ts       # Self-improvement cycle (6h)
+│   ├── memory.ts         # SQLite persistence + pruning
+│   ├── wallet.ts         # Solana wallet (encapsulated signing)
 │   ├── scheduler.ts      # Cron-based task scheduling
-│   ├── wallet.ts         # Solana wallet management
-│   └── logger.ts         # Winston logging
+│   └── logger.ts         # Structured logging (Winston)
 ├── strategies/
-│   ├── base.ts           # Abstract strategy class
-│   ├── onchain.ts        # On-chain trading (Jupiter swaps)
-│   ├── airdrop.ts        # Airdrop farming
+│   ├── base.ts           # Abstract strategy interface
+│   ├── onchain.ts        # Jupiter round-trip arbitrage
+│   ├── airdrop.ts        # Protocol interaction farming
+│   ├── security-bounty.ts # Bug bounty platform hunting
+│   ├── security-service.ts # Paid scanning service
 │   ├── bounty.ts         # GitHub bounty hunting
-│   ├── content.ts        # Content creation
-│   └── microtask.ts      # Microtask platforms
+│   ├── content.ts        # Content monetization
+│   └── microtask.ts      # Micro-task completion
 ├── integrations/
-│   ├── openrouter.ts     # LLM provider (OpenRouter API)
-│   ├── solana.ts         # Solana blockchain helpers
-│   ├── jupiter.ts        # Jupiter DEX integration
-│   └── github.ts         # GitHub API for bounties
+│   ├── openrouter.ts     # LLM client (rate-limited, retries)
+│   ├── solana.ts         # Blockchain helpers
+│   ├── jupiter.ts        # DEX (quotes, swaps, retry on blockhash expiry)
+│   ├── github.ts         # GitHub API
+│   └── security-scanner.ts # Header/SSL/port/vuln scanning
 ├── telegram/
-│   ├── bot.ts            # Grammy bot setup
-│   ├── alerts.ts         # Alert system with rate limiting
-│   ├── commands/         # Command handlers
-│   └── index.ts          # Telegram module entry
+│   ├── bot.ts            # Grammy bot + passphrase auth
+│   ├── alerts.ts         # Rate-limited notifications
+│   └── commands/         # /status, /scan, /bounties, /security, etc.
 └── types/
-    └── index.ts          # Shared TypeScript types
+    └── index.ts          # Shared type definitions
 ```
 
-## Prerequisites
+### Security Design
 
-- **Node.js** 22+ (recommended: 24)
-- **Solana wallet** with a funded private key (minimum 0.1 SOL for rent)
-- **Telegram bot token** from [@BotFather](https://t.me/BotFather)
-- **OpenRouter API key** from [openrouter.ai](https://openrouter.ai)
-- **GitHub token** (optional, for higher API rate limits on bounty searching)
+- **Encapsulated signing** — Private key never leaves `WalletManager`; signing is internal-only
+- **MCP gatekeeper** — All tool executions pass through permission checks, rate limiting, and input sanitization
+- **Telegram auth** — Passphrase-based with 5-minute expiry, persisted to SQLite, revocable
+- **Input sanitization** — Shell injection pattern detection on all MCP parameters
+- **Audit trail** — Every action logged to SQLite for forensic review
+
+---
 
 ## Quick Start
 
+### Prerequisites
+
+- Node.js 22+
+- Solana wallet with $5+ SOL
+- [Telegram bot token](https://t.me/BotFather)
+- [OpenRouter API key](https://openrouter.ai)
+
+### Install & Run
+
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/Only-5.git
+git clone https://github.com/NgajiKripto/Only-5.git
 cd Only-5
-
-# Install dependencies
 npm install
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your actual keys
-
-# Build
+cp .env.example .env    # Edit with your keys
 npm run build
-
-# Run
 npm start
 ```
 
-For development with auto-reload:
+### Development
 
 ```bash
-npm run dev
+npm run dev             # Run with tsx (auto-reload)
+npm test               # Run test suite (217 tests)
+npm run build          # TypeScript compilation
 ```
 
-## Environment Variables
+---
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `TELEGRAM_BOT_TOKEN` | Yes | - | Telegram bot token from BotFather |
-| `OPENROUTER_API_KEY` | Yes | - | API key for OpenRouter LLM access |
-| `SOLANA_PRIVATE_KEY` | Yes | - | Base58-encoded Solana wallet private key |
-| `SOLANA_RPC_URL` | No | `https://api.mainnet-beta.solana.com` | Solana RPC endpoint |
-| `GITHUB_TOKEN` | No | - | GitHub personal access token for bounty search |
-| `LOG_LEVEL` | No | `info` | Logging level: debug, info, warn, error |
-| `DB_PATH` | No | `./data/only5.db` | Path to SQLite database file |
-| `AGENT_NAME` | No | `Only-5` | Agent display name |
+## Configuration
 
-## Strategies
+### Required Environment Variables
 
-### On-Chain Trading (`onchain`)
-Monitors token prices on Solana DEXes via Jupiter. Executes swaps when profitable opportunities are detected based on LLM analysis of market conditions.
+```env
+TELEGRAM_BOT_TOKEN=         # From @BotFather
+OPENROUTER_API_KEY=         # From openrouter.ai
+SOLANA_PRIVATE_KEY=         # Base58-encoded wallet private key
+```
 
-- **Risk Level:** HIGH
-- **Minimum Balance:** 0.1 SOL
+### Optional Environment Variables
 
-### Airdrop Farming (`airdrop`)
-Identifies and participates in airdrops and token distributions on Solana. Performs qualifying actions (swaps, staking) to become eligible.
+| Variable | Default | Description |
+|:---------|:--------|:------------|
+| `SOLANA_RPC_URL` | `https://api.mainnet-beta.solana.com` | Solana RPC endpoint (Helius recommended) |
+| `GITHUB_TOKEN` | — | GitHub PAT for higher rate limits |
+| `HACKERONE_API_TOKEN` | — | HackerOne API access |
+| `IMMUNEFI_API_KEY` | — | Immunefi platform access |
+| `SECURITY_SCAN_PRICE_SOL` | `0.1` | Price per scan in SOL |
+| `LOG_LEVEL` | `info` | Logging verbosity |
+| `DB_PATH` | `./data/only5.db` | SQLite database path |
+| `AGENT_NAME` | `Only-5` | Display name in logs/alerts |
 
-- **Risk Level:** LOW
-- **Minimum Balance:** 0.05 SOL
-
-### Bounty Hunting (`bounty`)
-Searches GitHub for issues with bounty rewards. Uses LLM to assess complexity and generates solution approaches. Targets smaller, well-defined bounties.
-
-- **Risk Level:** LOW
-- **Minimum Balance:** 0 SOL
-
-### Content Creation (`content`)
-Generates technical content and educational material using LLM capabilities. Targets platforms with creator reward programs.
-
-- **Risk Level:** LOW
-- **Minimum Balance:** 0 SOL
-
-### Microtask Completion (`microtask`)
-Completes small tasks on platforms that pay in crypto. Tasks include data labeling, testing, and simple development work.
-
-- **Risk Level:** LOW
-- **Minimum Balance:** 0 SOL
+---
 
 ## Telegram Commands
 
+### Monitoring
+
 | Command | Description |
-|---------|-------------|
-| `/status` | Show agent state, uptime, balance, active strategies |
-| `/balance` | Show SOL and token balances with USD values |
+|:--------|:------------|
+| `/status` | Agent state, uptime, balance, active strategies |
+| `/balance` | SOL and token balances with USD values |
+| `/pnl` | Profit/loss summary |
+| `/report` | Detailed daily P&L report |
+| `/logs` | Recent log entries (tail-read, memory-safe) |
+| `/errors` | Recent error entries |
+
+### Strategy Control
+
+| Command | Description |
+|:--------|:------------|
 | `/strategies` | List all strategies with performance stats |
 | `/enable <name>` | Enable a strategy |
 | `/disable <name>` | Disable a strategy |
-| `/strategy <name>` | Detailed view of one strategy |
-| `/report` | Generate daily P&L report with breakdown |
-| `/pnl` | Quick profit/loss summary |
 | `/pause` | Pause all agent activity |
 | `/resume` | Resume operations |
-| `/config` | Show current configuration |
-| `/logs` | Show recent log entries |
-| `/errors` | Show recent errors |
+
+### Security
+
+| Command | Description |
+|:--------|:------------|
+| `/scan <url>` | Queue a paid security scan |
+| `/bounties` | Bug bounty monitoring status |
+| `/security` | Combined security strategy statistics |
+
+---
 
 ## Deployment
 
-### PM2 on VPS
+### PM2 (Recommended for VPS)
 
 ```bash
-# Install PM2 globally
 npm install -g pm2
-
-# Build the project
 npm run build
-
-# Start with PM2
 pm2 start ecosystem.config.cjs
-
-# Monitor
-pm2 monit
-
-# View logs
-pm2 logs only-5
+pm2 save
+pm2 startup
 ```
 
 ### Docker
 
 ```bash
-# Build image
 docker build -t only-5 .
-
-# Run container
-docker run -d \
-  --name only-5 \
-  --env-file .env \
-  -v ./data:/app/data \
-  only-5
+docker run -d --name only-5 --env-file .env -v ./data:/app/data only-5
 ```
 
 ### Docker Compose
 
 ```bash
-# Start in background
 docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Stop
-docker-compose down
+docker-compose logs -f    # Monitor
+docker-compose down       # Stop
 ```
+
+---
 
 ## Risk Management
 
-The agent includes a built-in risk management system that prevents catastrophic losses:
+The agent enforces strict risk boundaries to prevent catastrophic losses:
 
-- **Daily Loss Limit** (default 20%): Maximum loss per day as a percentage of starting balance. Once reached, all trading stops until the next day.
-- **Max Trade Size** (default 10%): No single trade can exceed this percentage of current balance.
-- **Max Exposure** (default 50%): Total open position value cannot exceed this percentage.
-- **Cooldown After Loss** (default 30 min): After any loss, the agent pauses trading to prevent emotional/cascading trades.
-- **Minimum Balance** (default 0.1 SOL): Balance never drops below this amount (needed for Solana rent exemption).
+| Parameter | Default | Description |
+|:----------|:--------|:------------|
+| Daily Loss Limit | 20% | Max daily loss as % of starting balance |
+| Max Trade Size | 10% | No single trade exceeds this % of balance |
+| Max Exposure | 50% | Total open positions capped at this % |
+| Cooldown After Loss | 30 min | Trading pause after any loss event |
+| Minimum Balance | 0.1 SOL | Floor balance (Solana rent exemption) |
+
+The risk manager tracks open positions in real-time and blocks any trade that would violate these constraints.
+
+---
 
 ## Self-Improvement System
 
-Every 6 hours (configurable), the agent runs a learning cycle:
+The learning loop runs every 6 hours:
 
-1. Fetches recent decisions and their outcomes from memory
-2. Groups decisions by strategy
-3. Sends decision history to LLM for pattern analysis
-4. Extracts structured insights (what worked, what failed, suggested adjustments)
-5. Persists learnings as "skills" in the memory system
-6. Updates confidence scores for each strategy
+```
+Fetch Decisions → Group by Strategy → LLM Pattern Analysis → Extract Insights → Persist Skills → Update Confidence
+```
 
-Over time, the agent learns which strategies work best under which conditions and adjusts its behavior accordingly.
+**What it learns:**
+- Which strategies perform best under current conditions
+- Optimal timing for different opportunity types
+- Risk patterns that precede losses
+- Market conditions that correlate with success
 
-## Configuration Tuning
+Confidence scores adjust strategy selection priority over time.
 
-Key parameters you can adjust:
+---
 
-- **Strategy evaluation interval**: Default 30 seconds. Increase for less aggressive trading.
-- **Learning cycle interval**: Default 6 hours. Decrease for faster adaptation.
-- **Risk limits**: Adjust in agent options for your risk tolerance.
-- **LLM model**: Change in OpenRouter config for different cost/quality tradeoffs.
+## MCP Execution Layer
+
+Inspired by the [Dark-Moon](https://github.com/ASCIT31/Dark-Moon) security platform architecture, all tool execution passes through a controlled gatekeeper:
+
+```
+Strategy → MCP Layer → [Permission Check] → [Rate Limit] → [Sanitize] → [Execute] → [Audit]
+```
+
+- **Per-strategy permissions** — Each strategy registers its allowed tools
+- **Sliding window rate limiting** — Prevents abuse and API exhaustion
+- **Input sanitization** — Blocks shell injection and suspicious patterns
+- **Timeout management** — AbortController-based timeouts on all operations
+- **Full audit trail** — Every action logged with strategy, params, result, timing
+
+---
 
 ## Testing
 
 ```bash
-# Run all tests
-npm test
-
-# Run specific test file
-npx vitest run tests/core/risk.test.ts
-
-# Run with coverage
-npx vitest run --coverage
+npm test                              # All 217 tests
+npx vitest run tests/core/risk.test.ts    # Specific file
+npx vitest run --coverage             # Coverage report
 ```
+
+Test coverage includes:
+- Core modules (memory, scheduler, wallet, risk, learning)
+- Strategy evaluation and execution
+- MCP execution layer (permissions, rate limiting, sanitization)
+- Telegram command handlers
+- Integration agent lifecycle
+
+---
+
+## Inspiration
+
+Only-5 draws architectural inspiration from:
+
+- **[Charon](https://github.com/yunus-0x/charon)** — Strategy-based trading, Telegram-first UX, position monitoring
+- **[Hermes Agent](https://github.com/nousresearch/hermes-agent)** — Self-improvement loop, skill memory, scheduled automations
+- **[MiroFish](https://github.com/666ghj/MiroFish)** — Multi-agent decision making, prediction capabilities
+- **[Dark-Moon](https://github.com/ASCIT31/Dark-Moon)** — MCP execution gatekeeper, security scanning, sub-agent orchestration
+
+---
 
 ## Disclaimer
 
-This software is provided for educational and experimental purposes. Cryptocurrency trading involves significant financial risk. By using this software, you acknowledge:
+This software is experimental. Cryptocurrency operations involve financial risk.
 
 - You may lose some or all of your invested capital
-- Past performance does not guarantee future results
 - The agent makes autonomous decisions that may result in losses
-- The developers are not responsible for any financial losses
-- You should only invest what you can afford to lose completely
+- Past performance does not guarantee future results
+- The developers assume no liability for financial losses
+- Only deploy with capital you can afford to lose entirely
+- Security scanning features should only target systems you have authorization to test
 
-Always start with small amounts and monitor the agent's behavior carefully before increasing exposure.
+**Start small. Monitor closely. Scale gradually.**
+
+---
+
+<div align="center">
+
+**Built with autonomy in mind.**
+
+[Report Bug](https://github.com/NgajiKripto/Only-5/issues) · [Request Feature](https://github.com/NgajiKripto/Only-5/issues)
+
+</div>
