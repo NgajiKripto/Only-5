@@ -61,17 +61,22 @@ export function registerPriorityCommands(
       return;
     }
 
-    try {
-      agent.getPriorityManager().boostStrategy(name);
-      await ctx.reply(
-        `\u2B06\uFE0F Strategy "<b>${name}</b>" boosted successfully.`,
-        { parse_mode: "HTML" }
-      );
-    } catch (error) {
-      await ctx.reply(
-        `\u274C Failed to boost strategy: ${(error as Error).message}`
-      );
+    // Validate strategy exists
+    const strategies: Map<string, any> = (agent as any).strategies;
+    const found = Array.from(strategies.keys()).find(
+      (s) => s.toLowerCase() === name.toLowerCase()
+    );
+
+    if (!found) {
+      await ctx.reply(`\u274C Strategy "${name}" not found. Use /strategies to see available strategies.`);
+      return;
     }
+
+    agent.getPriorityManager().boostStrategy(found);
+    await ctx.reply(
+      `\u2B06\uFE0F Strategy "<b>${found}</b>" boosted successfully.`,
+      { parse_mode: "HTML" }
+    );
   });
 
   bot.command("mode", async (ctx: Context) => {

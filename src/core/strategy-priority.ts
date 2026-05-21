@@ -39,7 +39,7 @@ export class StrategyPriorityManager {
     const successRate = perf.successRate;
 
     // Consecutive failures penalty
-    const existing = this.priorities.get(strategy);
+    const existing = this.priorities.get(strategy) ?? this.memory.getStrategyPriority(strategy);
     const consecutiveFailures = existing?.consecutiveFailures ?? 0;
     const failurePenalty = consecutiveFailures * 0.1;
 

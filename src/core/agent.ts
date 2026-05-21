@@ -309,8 +309,6 @@ export class AgentController extends EventEmitter {
         logger.error(`Strategy "${name}" evaluation failed`, {
           error: (error as Error).message,
         });
-        // Track evaluation failure
-        this.priorityManager.recordFailure(name);
       }
     }
 
@@ -343,9 +341,8 @@ export class AgentController extends EventEmitter {
   ): Promise<void> {
     this.status = "executing";
 
+    let selected = opportunities[0];
     try {
-      // Use LLM to rank opportunities if multiple exist
-      let selected = opportunities[0];
 
       if (opportunities.length > 1) {
         const messages: LLMMessage[] = [
@@ -457,6 +454,10 @@ export class AgentController extends EventEmitter {
       });
     } catch (error) {
       this.status = "error";
+      // Track the failure for priority system
+      if (selected) {
+        this.priorityManager.recordFailure(selected.strategy.name);
+      }
       logger.error("Execution failed", {
         error: (error as Error).message,
       });
