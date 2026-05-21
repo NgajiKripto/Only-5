@@ -17,6 +17,9 @@ const configSchema = z.object({
     .url()
     .default("https://api.mainnet-beta.solana.com"),
   GITHUB_TOKEN: z.string().optional(),
+  HACKERONE_API_TOKEN: z.string().optional(),
+  IMMUNEFI_API_KEY: z.string().optional(),
+  SECURITY_SCAN_PRICE_SOL: z.string().optional().default("0.1"),
   LOG_LEVEL: z
     .enum(["debug", "info", "warn", "error"])
     .default("info"),
@@ -37,6 +40,9 @@ export const config: Config = configSchema.parse({
   SOLANA_PRIVATE_KEY: process.env.SOLANA_PRIVATE_KEY,
   SOLANA_RPC_URL: process.env.SOLANA_RPC_URL || undefined,
   GITHUB_TOKEN: process.env.GITHUB_TOKEN || undefined,
+  HACKERONE_API_TOKEN: process.env.HACKERONE_API_TOKEN || undefined,
+  IMMUNEFI_API_KEY: process.env.IMMUNEFI_API_KEY || undefined,
+  SECURITY_SCAN_PRICE_SOL: process.env.SECURITY_SCAN_PRICE_SOL || undefined,
   LOG_LEVEL: process.env.LOG_LEVEL || undefined,
   DB_PATH: process.env.DB_PATH || undefined,
   AGENT_NAME: process.env.AGENT_NAME || undefined,

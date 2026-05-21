@@ -11,3 +11,5 @@ export { RiskManager } from "./risk.js";
 export type { RiskLimits, TradeCheck, DailyPnL } from "./risk.js";
 export { LearningSystem } from "./learning.js";
 export type { LearningInsight, LearningDependencies } from "./learning.js";
+export { MCPExecutionLayer } from "./mcp.js";
+export type { MCPAction, MCPResult, MCPConfig, ToolHandler } from "./mcp.js";

@@ -73,6 +73,7 @@ function createMockAgent(dbPath: string) {
     getMemory: () => memory,
     getWallet: () => mockWallet,
     getScheduler: () => mockScheduler,
+    getStrategy: (name: string) => strategies.get(name),
     strategies,
     on: vi.fn(),
     emit: vi.fn(),
@@ -369,6 +370,199 @@ describe("Telegram Commands", () => {
       const telegramBot = new TelegramBot(agent as any, [99999]);
       expect(telegramBot.isAuthorized(12345)).toBe(false);
       expect(telegramBot.isAuthorized(99999)).toBe(true);
+    });
+  });
+
+  describe("/scan command", () => {
+    it("should show usage when no URL provided", async () => {
+      const { registerSecurityCommands } = await import("../../src/telegram/commands/security.js");
+
+      const ctx = createMockContext();
+      ctx.message.text = "/scan";
+      let scanHandler: ((ctx: any) => Promise<void>) | null = null;
+
+      const mockBot = {
+        command: (cmd: string, handler: (ctx: any) => Promise<void>) => {
+          if (cmd === "scan") scanHandler = handler;
+        },
+      };
+
+      registerSecurityCommands(mockBot as any, agent);
+      expect(scanHandler).not.toBeNull();
+
+      await scanHandler!(ctx);
+
+      expect(ctx.reply).toHaveBeenCalledTimes(1);
+      const message = ctx.reply.mock.calls[0][0] as string;
+      expect(message).toContain("Usage: /scan <url>");
+      expect(message).toContain("0.1 SOL per scan");
+    });
+
+    it("should reject invalid URL", async () => {
+      const { registerSecurityCommands } = await import("../../src/telegram/commands/security.js");
+
+      const ctx = createMockContext();
+      ctx.message.text = "/scan not-a-url";
+      let scanHandler: ((ctx: any) => Promise<void>) | null = null;
+
+      const mockBot = {
+        command: (cmd: string, handler: (ctx: any) => Promise<void>) => {
+          if (cmd === "scan") scanHandler = handler;
+        },
+      };
+
+      registerSecurityCommands(mockBot as any, agent);
+      await scanHandler!(ctx);
+
+      expect(ctx.reply).toHaveBeenCalledTimes(1);
+      const message = ctx.reply.mock.calls[0][0] as string;
+      expect(message).toContain("Invalid URL");
+    });
+
+    it("should queue a valid scan request", async () => {
+      const { registerSecurityCommands } = await import("../../src/telegram/commands/security.js");
+
+      // Add security-service mock to strategies
+      const mockSecurityService = {
+        addScanRequest: vi.fn(),
+        getPricePerScan: vi.fn().mockReturnValue(0.1),
+        getScanQueue: vi.fn().mockReturnValue([{ target: "https://example.com" }]),
+      };
+      agent.strategies.set("security-service", mockSecurityService);
+
+      const ctx = createMockContext();
+      ctx.message.text = "/scan https://example.com";
+      let scanHandler: ((ctx: any) => Promise<void>) | null = null;
+
+      const mockBot = {
+        command: (cmd: string, handler: (ctx: any) => Promise<void>) => {
+          if (cmd === "scan") scanHandler = handler;
+        },
+      };
+
+      registerSecurityCommands(mockBot as any, agent);
+      await scanHandler!(ctx);
+
+      expect(mockSecurityService.addScanRequest).toHaveBeenCalledWith(12345, "https://example.com", "url");
+      expect(ctx.reply).toHaveBeenCalledTimes(1);
+      const message = ctx.reply.mock.calls[0][0] as string;
+      expect(message).toContain("Scan queued for: https://example.com");
+      expect(message).toContain("0.1 SOL");
+      expect(message).toContain("Position in queue: 1");
+    });
+
+    it("should reject when queue is full", async () => {
+      const { registerSecurityCommands } = await import("../../src/telegram/commands/security.js");
+
+      // Add security-service mock with full queue
+      const fullQueue = Array.from({ length: 50 }, (_, i) => ({ target: `https://target${i}.com` }));
+      const mockSecurityService = {
+        addScanRequest: vi.fn(),
+        getPricePerScan: vi.fn().mockReturnValue(0.1),
+        getScanQueue: vi.fn().mockReturnValue(fullQueue),
+      };
+      agent.strategies.set("security-service", mockSecurityService);
+
+      const ctx = createMockContext();
+      ctx.message.text = "/scan https://example.com";
+      let scanHandler: ((ctx: any) => Promise<void>) | null = null;
+
+      const mockBot = {
+        command: (cmd: string, handler: (ctx: any) => Promise<void>) => {
+          if (cmd === "scan") scanHandler = handler;
+        },
+      };
+
+      registerSecurityCommands(mockBot as any, agent);
+      await scanHandler!(ctx);
+
+      expect(mockSecurityService.addScanRequest).not.toHaveBeenCalled();
+      expect(ctx.reply).toHaveBeenCalledTimes(1);
+      const message = ctx.reply.mock.calls[0][0] as string;
+      expect(message).toContain("queue is full");
+    });
+  });
+
+  describe("/bounties command", () => {
+    it("should show bounty monitoring status", async () => {
+      const { registerSecurityCommands } = await import("../../src/telegram/commands/security.js");
+
+      // Add security-bounty mock to strategies
+      const mockSecBounty = {
+        enabled: true,
+        getPerformance: vi.fn().mockReturnValue({ totalActions: 3, successRate: 0.67, totalReward: 1.5 }),
+      };
+      agent.strategies.set("security-bounty", mockSecBounty);
+
+      // Add a submission to memory
+      memory.remember("security_bounty_submissions", JSON.stringify({
+        platform: "HackerOne",
+        title: "XSS in login form",
+      }));
+
+      const ctx = createMockContext();
+      let bountiesHandler: ((ctx: any) => Promise<void>) | null = null;
+
+      const mockBot = {
+        command: (cmd: string, handler: (ctx: any) => Promise<void>) => {
+          if (cmd === "bounties") bountiesHandler = handler;
+        },
+      };
+
+      registerSecurityCommands(mockBot as any, agent);
+      await bountiesHandler!(ctx);
+
+      expect(ctx.reply).toHaveBeenCalledTimes(1);
+      const message = ctx.reply.mock.calls[0][0] as string;
+      expect(message).toContain("Bug Bounty Monitoring");
+      expect(message).toContain("Active");
+      expect(message).toContain("Total Submissions: 3");
+      expect(message).toContain("67%");
+      expect(message).toContain("1.5000 SOL");
+      expect(message).toContain("HackerOne");
+      expect(message).toContain("XSS in login form");
+    });
+  });
+
+  describe("/security command", () => {
+    it("should show combined security stats", async () => {
+      const { registerSecurityCommands } = await import("../../src/telegram/commands/security.js");
+
+      const mockSecBounty = {
+        enabled: true,
+        getPerformance: vi.fn().mockReturnValue({ totalActions: 5, successRate: 0.6, totalReward: 2.0 }),
+      };
+      const mockSecService = {
+        enabled: true,
+        getPerformance: vi.fn().mockReturnValue({ totalActions: 10, successRate: 0.9, totalReward: 1.0 }),
+        getScanQueue: vi.fn().mockReturnValue([{ target: "https://pending.com" }]),
+        getCompletedScans: vi.fn().mockReturnValue([]),
+      };
+      agent.strategies.set("security-bounty", mockSecBounty);
+      agent.strategies.set("security-service", mockSecService);
+
+      const ctx = createMockContext();
+      let securityHandler: ((ctx: any) => Promise<void>) | null = null;
+
+      const mockBot = {
+        command: (cmd: string, handler: (ctx: any) => Promise<void>) => {
+          if (cmd === "security") securityHandler = handler;
+        },
+      };
+
+      registerSecurityCommands(mockBot as any, agent);
+      await securityHandler!(ctx);
+
+      expect(ctx.reply).toHaveBeenCalledTimes(1);
+      const message = ctx.reply.mock.calls[0][0] as string;
+      expect(message).toContain("Security Strategies Overview");
+      expect(message).toContain("Bug Bounty Hunting:");
+      expect(message).toContain("Submissions: 5");
+      expect(message).toContain("2.0000 SOL");
+      expect(message).toContain("Scans Completed: 10");
+      expect(message).toContain("1 pending");
+      expect(message).toContain("1.0000 SOL");
+      expect(message).toContain("Total Security Revenue: 3.0000 SOL");
     });
   });
 });
