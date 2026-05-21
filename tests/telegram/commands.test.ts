@@ -373,6 +373,138 @@ describe("Telegram Commands", () => {
     });
   });
 
+  describe("Priority commands", () => {
+    it("/priority should list strategies with tier icons and scores", async () => {
+      const { registerPriorityCommands } = await import("../../src/telegram/commands/priority.js");
+
+      const mockPriorityManager = {
+        getPrioritizedStrategies: vi.fn().mockReturnValue([
+          { strategy: "airdrop-hunter", tier: "CRITICAL", score: 0.85, consecutiveFailures: 0, lastRevenueAt: Date.now() - 3600000, updatedAt: Date.now() },
+          { strategy: "content-creator", tier: "LOW", score: 0.2, consecutiveFailures: 6, lastRevenueAt: null, updatedAt: Date.now() },
+        ]),
+        boostStrategy: vi.fn(),
+      };
+
+      const mockFallbackSystem = {
+        getState: vi.fn().mockReturnValue({ mode: "NORMAL", enteredAt: Date.now() - 7200000, lastRevenueAt: Date.now() - 3600000 }),
+        getDescription: vi.fn().mockReturnValue("NORMAL mode (revenue 1h ago)"),
+        getConfidenceThreshold: vi.fn().mockReturnValue(0.5),
+        getEvaluationIntervalSeconds: vi.fn().mockReturnValue(30),
+      };
+
+      const priorityAgent = {
+        ...agent,
+        getPriorityManager: () => mockPriorityManager,
+        getFallbackSystem: () => mockFallbackSystem,
+      };
+
+      let priorityHandler: ((ctx: any) => Promise<void>) | null = null;
+      const mockBot = {
+        command: (cmd: string, handler: (ctx: any) => Promise<void>) => {
+          if (cmd === "priority") priorityHandler = handler;
+        },
+      };
+
+      registerPriorityCommands(mockBot as any, priorityAgent as any);
+      expect(priorityHandler).not.toBeNull();
+
+      const ctx = createMockContext();
+      await priorityHandler!(ctx);
+
+      expect(ctx.reply).toHaveBeenCalledTimes(1);
+      const message = ctx.reply.mock.calls[0][0] as string;
+      expect(message).toContain("Strategy Priorities");
+      expect(message).toContain("airdrop-hunter");
+      expect(message).toContain("content-creator");
+      expect(message).toContain("85%");
+      expect(message).toContain("20%");
+    });
+
+    it("/boost should call boostStrategy with the correct name", async () => {
+      const { registerPriorityCommands } = await import("../../src/telegram/commands/priority.js");
+
+      const mockPriorityManager = {
+        getPrioritizedStrategies: vi.fn().mockReturnValue([]),
+        boostStrategy: vi.fn(),
+      };
+
+      const mockFallbackSystem = {
+        getState: vi.fn().mockReturnValue({ mode: "NORMAL", enteredAt: Date.now(), lastRevenueAt: Date.now() }),
+        getDescription: vi.fn().mockReturnValue("NORMAL mode"),
+        getConfidenceThreshold: vi.fn().mockReturnValue(0.5),
+        getEvaluationIntervalSeconds: vi.fn().mockReturnValue(30),
+      };
+
+      const priorityAgent = {
+        ...agent,
+        getPriorityManager: () => mockPriorityManager,
+        getFallbackSystem: () => mockFallbackSystem,
+      };
+
+      let boostHandler: ((ctx: any) => Promise<void>) | null = null;
+      const mockBot = {
+        command: (cmd: string, handler: (ctx: any) => Promise<void>) => {
+          if (cmd === "boost") boostHandler = handler;
+        },
+      };
+
+      registerPriorityCommands(mockBot as any, priorityAgent as any);
+      expect(boostHandler).not.toBeNull();
+
+      const ctx = createMockContext();
+      ctx.message.text = "/boost airdrop-hunter";
+      await boostHandler!(ctx);
+
+      expect(mockPriorityManager.boostStrategy).toHaveBeenCalledWith("airdrop-hunter");
+      expect(ctx.reply).toHaveBeenCalledTimes(1);
+      const message = ctx.reply.mock.calls[0][0] as string;
+      expect(message).toContain("boosted");
+      expect(message).toContain("airdrop-hunter");
+    });
+
+    it("/mode should show current mode and threshold", async () => {
+      const { registerPriorityCommands } = await import("../../src/telegram/commands/priority.js");
+
+      const mockPriorityManager = {
+        getPrioritizedStrategies: vi.fn().mockReturnValue([]),
+        boostStrategy: vi.fn(),
+      };
+
+      const mockFallbackSystem = {
+        getState: vi.fn().mockReturnValue({ mode: "NORMAL", enteredAt: Date.now() - 7200000, lastRevenueAt: Date.now() - 3600000 }),
+        getDescription: vi.fn().mockReturnValue("NORMAL mode (revenue 1h ago)"),
+        getConfidenceThreshold: vi.fn().mockReturnValue(0.5),
+        getEvaluationIntervalSeconds: vi.fn().mockReturnValue(30),
+      };
+
+      const priorityAgent = {
+        ...agent,
+        getPriorityManager: () => mockPriorityManager,
+        getFallbackSystem: () => mockFallbackSystem,
+      };
+
+      let modeHandler: ((ctx: any) => Promise<void>) | null = null;
+      const mockBot = {
+        command: (cmd: string, handler: (ctx: any) => Promise<void>) => {
+          if (cmd === "mode") modeHandler = handler;
+        },
+      };
+
+      registerPriorityCommands(mockBot as any, priorityAgent as any);
+      expect(modeHandler).not.toBeNull();
+
+      const ctx = createMockContext();
+      await modeHandler!(ctx);
+
+      expect(ctx.reply).toHaveBeenCalledTimes(1);
+      const message = ctx.reply.mock.calls[0][0] as string;
+      expect(message).toContain("Operating Mode");
+      expect(message).toContain("NORMAL");
+      expect(message).toContain("50%");
+      expect(message).toContain("30s");
+    });
+  });
+
   describe("/scan command", () => {
     it("should show usage when no URL provided", async () => {
       const { registerSecurityCommands } = await import("../../src/telegram/commands/security.js");

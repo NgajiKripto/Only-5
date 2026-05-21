@@ -82,3 +82,33 @@ export interface LLMResponse {
   model: string;
   tokensUsed: number;
 }
+
+export enum PriorityTier {
+  CRITICAL = "CRITICAL",
+  HIGH = "HIGH",
+  MEDIUM = "MEDIUM",
+  LOW = "LOW",
+  DORMANT = "DORMANT",
+}
+
+export enum FallbackMode {
+  NORMAL = "NORMAL",
+  CONCERN = "CONCERN",
+  SURVIVAL = "SURVIVAL",
+  PIVOT = "PIVOT",
+}
+
+export interface StrategyPriorityRecord {
+  strategy: string;
+  tier: PriorityTier;
+  score: number;
+  consecutiveFailures: number;
+  lastRevenueAt: number | null;
+  updatedAt: number;
+}
+
+export interface FallbackState {
+  mode: FallbackMode;
+  enteredAt: number;
+  lastRevenueAt: number | null;
+}

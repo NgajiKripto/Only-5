@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import { v4 as uuidv4 } from "uuid";
 import { config } from "../config.js";
 import { createLogger } from "./logger.js";
+import { PriorityTier, StrategyPriorityRecord } from "../types/index.js";
 
 const logger = createLogger("memory");
 
@@ -74,6 +75,15 @@ export class MemorySystem {
         timestamp INTEGER NOT NULL,
         category TEXT NOT NULL,
         content TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS strategy_priorities (
+        strategy TEXT PRIMARY KEY,
+        tier TEXT NOT NULL,
+        score REAL NOT NULL DEFAULT 0.5,
+        consecutive_failures INTEGER NOT NULL DEFAULT 0,
+        last_revenue_at INTEGER,
+        updated_at INTEGER NOT NULL
       );
     `);
     logger.info("Memory system initialized");
@@ -154,11 +164,94 @@ export class MemorySystem {
     };
   }
 
+  getStrategyPerformanceWindowed(strategy: string, days: number): StrategyPerformance {
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    const stmt = this.db.prepare(
+      "SELECT COUNT(*) as total, SUM(CASE WHEN reward > 0 THEN 1 ELSE 0 END) as successes, COALESCE(SUM(reward), 0) as totalReward FROM decisions WHERE strategy = ? AND outcome IS NOT NULL AND timestamp >= ?"
+    );
+    const row = stmt.get(strategy, cutoff) as {
+      total: number;
+      successes: number;
+      totalReward: number;
+    };
+
+    return {
+      totalActions: row.total,
+      successRate: row.total > 0 ? row.successes / row.total : 0,
+      totalReward: row.totalReward,
+    };
+  }
+
   getRecentDecisions(limit: number = 50): DecisionRecord[] {
     const stmt = this.db.prepare(
       "SELECT * FROM decisions ORDER BY timestamp DESC LIMIT ?"
     );
     return stmt.all(limit) as DecisionRecord[];
+  }
+
+  saveStrategyPriority(record: StrategyPriorityRecord): void {
+    const stmt = this.db.prepare(
+      `INSERT OR REPLACE INTO strategy_priorities (strategy, tier, score, consecutive_failures, last_revenue_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    );
+    stmt.run(
+      record.strategy,
+      record.tier,
+      record.score,
+      record.consecutiveFailures,
+      record.lastRevenueAt,
+      record.updatedAt
+    );
+    logger.debug(`Saved strategy priority: ${record.strategy}`, { tier: record.tier, score: record.score });
+  }
+
+  getStrategyPriorities(): StrategyPriorityRecord[] {
+    const stmt = this.db.prepare("SELECT * FROM strategy_priorities");
+    const rows = stmt.all() as Array<{
+      strategy: string;
+      tier: string;
+      score: number;
+      consecutive_failures: number;
+      last_revenue_at: number | null;
+      updated_at: number;
+    }>;
+    return rows.map((row) => ({
+      strategy: row.strategy,
+      tier: row.tier as PriorityTier,
+      score: row.score,
+      consecutiveFailures: row.consecutive_failures,
+      lastRevenueAt: row.last_revenue_at,
+      updatedAt: row.updated_at,
+    }));
+  }
+
+  getStrategyPriority(strategy: string): StrategyPriorityRecord | null {
+    const stmt = this.db.prepare("SELECT * FROM strategy_priorities WHERE strategy = ?");
+    const row = stmt.get(strategy) as {
+      strategy: string;
+      tier: string;
+      score: number;
+      consecutive_failures: number;
+      last_revenue_at: number | null;
+      updated_at: number;
+    } | undefined;
+    if (!row) return null;
+    return {
+      strategy: row.strategy,
+      tier: row.tier as PriorityTier,
+      score: row.score,
+      consecutiveFailures: row.consecutive_failures,
+      lastRevenueAt: row.last_revenue_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  getLastRevenueTimestamp(): number | null {
+    const stmt = this.db.prepare(
+      "SELECT MAX(timestamp) as lastRevenue FROM decisions WHERE reward > 0 AND outcome = 'success'"
+    );
+    const row = stmt.get() as { lastRevenue: number | null };
+    return row.lastRevenue ?? null;
   }
 
   close(): void {

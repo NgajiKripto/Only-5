@@ -1,0 +1,4 @@
+# One-time auth passphrase for Telegram bot authorization
+# Send this passphrase to the bot to authorize yourself.
+# This file is restricted to owner-only access (0600).
+8f0ae823-beb2-4c04-a940-6c80ad1d7d81

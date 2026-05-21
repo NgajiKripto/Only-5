@@ -1,12 +1,13 @@
 import type { AgentController } from "../core/agent.js";
 import { TelegramBot } from "./bot.js";
-import { AlertManager } from "./alerts.js";
+import { AlertManager, AlertType } from "./alerts.js";
 import { registerStatusCommand } from "./commands/status.js";
 import { registerBalanceCommand } from "./commands/balance.js";
 import { registerStrategiesCommands } from "./commands/strategies.js";
 import { registerReportCommands } from "./commands/report.js";
 import { registerControlCommands } from "./commands/control.js";
 import { registerLogsCommands } from "./commands/logs.js";
+import { registerPriorityCommands } from "./commands/priority.js";
 import { registerSecurityCommands } from "./commands/security.js";
 import { createLogger } from "../core/logger.js";
 
@@ -55,6 +56,7 @@ export function setupTelegram(
   registerReportCommands(grammyBot, agent);
   registerControlCommands(grammyBot, agent);
   registerLogsCommands(grammyBot, agent);
+  registerPriorityCommands(grammyBot, agent);
   registerSecurityCommands(grammyBot, agent);
 
   // Create alert manager
@@ -68,6 +70,8 @@ export function setupTelegram(
       alertManager.onLoss(Math.abs(alertData.amount));
     } else if (alertData.type === "error" && alertData.message) {
       alertManager.onError(alertData.message);
+    } else if (alertData.type === "mode_change" && alertData.message) {
+      alertManager.sendAlert(AlertType.WARNING, alertData.message);
     }
   });
 
