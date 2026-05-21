@@ -5,13 +5,21 @@ describe("PrivacyFilter", () => {
   const filter = new PrivacyFilter();
 
   describe("filter", () => {
-    it("should strip base58 private keys (strings > 32 chars)", () => {
-      // A base58 string of 44 chars (typical Solana private key)
-      const key = "5zGXqXosiizzRPZmHCSkJjEcuXeQYaHVqrP4CgnJvLXW";
+    it("should strip base58 private keys (strings >= 64 chars)", () => {
+      // A base58 string of 88 chars (typical ed25519 Solana private key)
+      const key = "5zGXqXosiizzRPZmHCSkJjEcuXeQYaHVqrP4CgnJvLXW5zGXqXosiizzRPZmHCSkJjEcuXeQYaHVqrP4CgnJ";
       const text = `My private key is ${key} please store it`;
       const result = filter.filter(text);
       expect(result).not.toContain(key);
       expect(result).toContain("[REDACTED_KEY]");
+    });
+
+    it("should NOT strip short base58 strings like public addresses (32-44 chars)", () => {
+      // A Solana public address (44 chars) should NOT be redacted
+      const publicAddress = "5zGXqXosiizzRPZmHCSkJjEcuXeQYaHVqrP4CgnJvLXW";
+      const text = `Send SOL to ${publicAddress}`;
+      const result = filter.filter(text);
+      expect(result).toContain(publicAddress);
     });
 
     it("should strip API keys with sk- prefix", () => {

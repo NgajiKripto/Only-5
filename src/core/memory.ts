@@ -5,6 +5,12 @@ import { createLogger } from "./logger.js";
 import { PriorityTier, StrategyPriorityRecord } from "../types/index.js";
 import { AdvancedMemorySystem } from "./memory/advanced-memory-system.js";
 import type { SearchResult, HybridSearchOptions } from "./memory/types.js";
+import type { LLMMessage, LLMResponse } from "../types/index.js";
+
+type LLMFunction = (
+  messages: LLMMessage[],
+  options?: { temperature?: number; maxTokens?: number }
+) => Promise<LLMResponse>;
 
 const logger = createLogger("memory");
 
@@ -44,13 +50,13 @@ export class MemorySystem {
   private db: Database.Database;
   private advanced: AdvancedMemorySystem;
 
-  constructor(dbPath?: string) {
+  constructor(dbPath?: string, llm?: LLMFunction | null) {
     const path = dbPath ?? config.DB_PATH;
     logger.info(`Initializing memory system at ${path}`);
     this.db = new Database(path);
     this.db.pragma("journal_mode = WAL");
     this.initialize();
-    this.advanced = new AdvancedMemorySystem(this.db);
+    this.advanced = new AdvancedMemorySystem(this.db, llm);
   }
 
   private initialize(): void {

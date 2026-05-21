@@ -180,6 +180,14 @@ export class MemoryStorage {
     return rows.map((r) => this.rowToEntry(r));
   }
 
+  getStaleEntryCandidates(lastAccessedBefore: number): MemoryEntry[] {
+    const stmt = this.db.prepare(
+      "SELECT * FROM memory_entries WHERE last_accessed < ? ORDER BY last_accessed ASC"
+    );
+    const rows = stmt.all(lastAccessedBefore) as RawMemoryRow[];
+    return rows.map((r) => this.rowToEntry(r));
+  }
+
   deleteEntriesBelowConfidence(threshold: number): number {
     const stmt = this.db.prepare("DELETE FROM memory_entries WHERE confidence < ?");
     const result = stmt.run(threshold);

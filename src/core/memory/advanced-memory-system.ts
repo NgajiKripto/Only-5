@@ -39,7 +39,8 @@ export class AdvancedMemorySystem {
       this.storage,
       this.embeddingService,
       this.lifecycle,
-      llm
+      llm,
+      this.knowledgeGraph
     );
     this.privacyFilter = new PrivacyFilter();
 

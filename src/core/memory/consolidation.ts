@@ -3,6 +3,7 @@ import { createLogger } from "../logger.js";
 import type { MemoryStorage } from "./storage.js";
 import type { EmbeddingService } from "./embedding.js";
 import type { MemoryLifecycle } from "./lifecycle.js";
+import { KnowledgeGraph } from "./knowledge-graph.js";
 import { PrivacyFilter } from "./privacy.js";
 import { MemoryTier } from "./types.js";
 import type { ConsolidationResult } from "./types.js";
@@ -23,6 +24,7 @@ export class ConsolidationPipeline {
   private storage: MemoryStorage;
   private embeddingService: EmbeddingService;
   private lifecycle: MemoryLifecycle;
+  private knowledgeGraph: KnowledgeGraph;
   private llm: LLMFunction | null;
   private privacyFilter: PrivacyFilter;
 
@@ -30,12 +32,14 @@ export class ConsolidationPipeline {
     storage: MemoryStorage,
     embeddingService: EmbeddingService,
     lifecycle: MemoryLifecycle,
-    llm?: LLMFunction | null
+    llm?: LLMFunction | null,
+    knowledgeGraph?: KnowledgeGraph | null
   ) {
     this.storage = storage;
     this.embeddingService = embeddingService;
     this.lifecycle = lifecycle;
     this.llm = llm ?? null;
+    this.knowledgeGraph = knowledgeGraph ?? new KnowledgeGraph(storage);
     this.privacyFilter = new PrivacyFilter();
   }
 
@@ -70,6 +74,23 @@ export class ConsolidationPipeline {
       tags,
       contentHash,
     });
+
+    // Extract entities and populate the knowledge graph
+    try {
+      const { entities, relationships } = this.knowledgeGraph.extractEntities(filtered);
+      for (const entity of entities) {
+        this.knowledgeGraph.addEntity(entity.label, entity.type);
+      }
+      for (const rel of relationships) {
+        const sourceNode = this.storage.getNodeByLabel(rel.source);
+        const targetNode = this.storage.getNodeByLabel(rel.target);
+        if (sourceNode && targetNode) {
+          this.knowledgeGraph.addRelationship(sourceNode.id, targetNode.id, rel.relation);
+        }
+      }
+    } catch (error) {
+      logger.debug("Entity extraction failed", { error: (error as Error).message });
+    }
 
     logger.debug(`Captured observation: ${id}`);
     return id;

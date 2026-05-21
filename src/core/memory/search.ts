@@ -79,13 +79,16 @@ export class HybridSearch {
     return scored.slice(0, limit);
   }
 
-  reciprocalRankFusion(resultSets: SearchResult[][], k: number = 60): SearchResult[] {
+  reciprocalRankFusion(resultSets: SearchResult[][], k: number = 60, weights?: number[]): SearchResult[] {
     const fusedScores = new Map<string, { entry: MemoryEntry; score: number }>();
 
-    for (const results of resultSets) {
+    for (let setIdx = 0; setIdx < resultSets.length; setIdx++) {
+      const results = resultSets[setIdx];
+      const weight = weights && weights[setIdx] !== undefined ? weights[setIdx] : 1.0;
+
       for (let rank = 0; rank < results.length; rank++) {
         const result = results[rank];
-        const rrfScore = 1 / (k + rank + 1);
+        const rrfScore = (1 / (k + rank + 1)) * weight;
         const existing = fusedScores.get(result.entry.id);
 
         if (existing) {
@@ -127,24 +130,24 @@ export class HybridSearch {
 
     // Run searches
     const resultSets: SearchResult[][] = [];
+    const weights: number[] = [];
 
     const bm25Results = this.bm25Search(query, entries, limit * 2);
     if (bm25Results.length > 0) {
-      // Apply weight to bm25 scores
-      const weightedBm25 = bm25Results.map((r) => ({ ...r, score: r.score * bm25Weight }));
-      resultSets.push(weightedBm25);
+      resultSets.push(bm25Results);
+      weights.push(bm25Weight);
     }
 
     const vectorResults = await this.vectorSearch(query, entries, limit * 2);
     if (vectorResults.length > 0) {
-      const weightedVector = vectorResults.map((r) => ({ ...r, score: r.score * vectorWeight }));
-      resultSets.push(weightedVector);
+      resultSets.push(vectorResults);
+      weights.push(vectorWeight);
     }
 
     if (resultSets.length === 0) return [];
 
-    // Fuse results using RRF
-    const fused = this.reciprocalRankFusion(resultSets);
+    // Fuse results using RRF with weights applied as multipliers
+    const fused = this.reciprocalRankFusion(resultSets, 60, weights);
     return fused.slice(0, limit);
   }
 

@@ -34,7 +34,13 @@ export class MemoryLifecycle {
   }
 
   evictStaleMemories(minConfidence: number = 0.1): number {
-    const entries = this.storage.getAllEntries();
+    // Use SQL-side filter to avoid loading all entries into memory.
+    // Pre-filter entries that haven't been accessed recently enough to potentially
+    // fail the decay check. Use a generous cutoff: entries accessed within the last
+    // hour with default decay factor will have retention > 0.7, so skip those.
+    const cutoffMs = 60 * 60 * 1000; // 1 hour minimum age for eviction candidates
+    const cutoffTime = Date.now() - cutoffMs;
+    const entries = this.storage.getStaleEntryCandidates(cutoffTime);
     let evicted = 0;
 
     for (const entry of entries) {

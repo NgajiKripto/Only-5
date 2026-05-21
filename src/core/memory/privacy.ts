@@ -11,7 +11,7 @@ interface FilterPattern {
 const PATTERNS: FilterPattern[] = [
   {
     name: "base58_private_key",
-    regex: /[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{33,88}/g,
+    regex: /\b[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{64,88}\b/g,
     replacement: "[REDACTED_KEY]",
   },
   {

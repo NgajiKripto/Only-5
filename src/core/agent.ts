@@ -47,7 +47,7 @@ export class AgentController extends EventEmitter {
   constructor(options?: AgentOptions) {
     super();
     this.options = options ?? {};
-    this.memory = new MemorySystem();
+    this.memory = new MemorySystem(undefined, chat);
     this.wallet = new WalletManager(this.memory);
     this.scheduler = new Scheduler();
   }

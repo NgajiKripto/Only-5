@@ -4,22 +4,16 @@ const logger = createLogger("embedding");
 
 const VECTOR_DIMENSIONS = 128;
 
+/**
+ * Deterministic TF-IDF-like embedding service using a fixed hashing approach.
+ * Embeddings are consistent across restarts since no vocabulary state is accumulated.
+ * Uses term frequency with a fixed IDF approximation based on token hash distribution.
+ */
 export class EmbeddingService {
-  private vocabulary: Map<string, number> = new Map();
-  private idfScores: Map<string, number> = new Map();
-  private documentCount: number = 0;
-
   generateEmbedding(text: string): Promise<number[]> {
     const tokens = this.tokenize(text);
     if (tokens.length === 0) {
       return Promise.resolve(new Array(VECTOR_DIMENSIONS).fill(0));
-    }
-
-    // Build/update vocabulary
-    this.documentCount++;
-    const uniqueTokens = new Set(tokens);
-    for (const token of uniqueTokens) {
-      this.vocabulary.set(token, (this.vocabulary.get(token) ?? 0) + 1);
     }
 
     // Compute TF-IDF vector with hashing trick for fixed dimensions
@@ -31,13 +25,17 @@ export class EmbeddingService {
     }
 
     for (const [term, tf] of termFreq) {
-      const df = this.vocabulary.get(term) ?? 1;
-      const idf = Math.log(1 + this.documentCount / df);
-      const tfidf = (tf / tokens.length) * idf;
+      // Use a deterministic IDF approximation based on the term's hash.
+      // This provides consistent weighting without needing document counts.
+      const termHash = this.hashString(term);
+      const pseudoIdf = 1.0 + Math.log(1 + 10.0 / (1 + (termHash % 10)));
+      const tfidf = (tf / tokens.length) * pseudoIdf;
 
       // Hash the term to a bucket
-      const bucket = this.hashString(term) % VECTOR_DIMENSIONS;
-      vector[bucket] += tfidf;
+      const bucket = termHash % VECTOR_DIMENSIONS;
+      // Use a secondary hash to determine sign for better distribution
+      const sign = (this.hashString(term + "_sign") % 2 === 0) ? 1 : -1;
+      vector[bucket] += tfidf * sign;
     }
 
     // L2 normalize

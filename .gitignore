@@ -2,5 +2,6 @@ node_modules
 dist
 .env
 data/*.db
+data/auth-passphrase.txt
 *.log
 coverage
