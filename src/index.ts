@@ -2,6 +2,7 @@ import { AgentController } from "./core/agent.js";
 import { setupTelegram } from "./telegram/index.js";
 import { createLogger } from "./core/logger.js";
 import { config } from "./config.js";
+import { createStrategies } from "./strategies/index.js";
 
 const logger = createLogger("main");
 
@@ -77,6 +78,16 @@ async function main(): Promise<void> {
   await checkConnectivity();
 
   const agent = new AgentController();
+
+  // Register strategies
+  const strategies = createStrategies({
+    memory: agent.getMemory(),
+    wallet: agent.getWallet(),
+  });
+
+  for (const [_, strategy] of strategies) {
+    agent.registerStrategy(strategy);
+  }
 
   // Setup Telegram bot
   const { bot, alertManager } = setupTelegram(agent);
