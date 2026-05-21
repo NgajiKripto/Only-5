@@ -7,7 +7,7 @@
 **Turn $5 into a self-sustaining income stream. No human intervention required.**
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-22+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-24+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Solana](https://img.shields.io/badge/Solana-Mainnet-9945FF?style=flat-square&logo=solana&logoColor=white)](https://solana.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 [![Tests](https://img.shields.io/badge/Tests-217%20passing-success?style=flat-square)]()
@@ -148,7 +148,7 @@ src/
 
 ### Prerequisites
 
-- Node.js 22+
+- Node.js 24+
 - Solana wallet with $5+ SOL
 - [Telegram bot token](https://t.me/BotFather)
 - [OpenRouter API key](https://openrouter.ai)
