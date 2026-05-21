@@ -1,0 +1,28 @@
+{
+  "project_type": "TypeScript Node.js autonomous revenue agent for Solana blockchain",
+  "language": "TypeScript",
+  "build_system": "npm with TypeScript compiler (tsc). ESM modules (type: module). Node 24+ required.",
+  "test_framework": "Vitest with inline env vars in vitest.config.ts. Tests in tests/ directory using temp SQLite DBs.",
+  "build_command": "source ~/.nvm/nvm.sh && nvm use 24 && npm run build",
+  "test_command": "source ~/.nvm/nvm.sh && nvm use 24 && npx vitest run",
+  "verification_instructions": "1. Run npm run build to verify TypeScript compilation. 2. Run npx vitest run to verify all tests pass. 3. Verify Docker build with docker build -t only5:test .",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "source ~/.nvm/nvm.sh && nvm use 24 && npm ci",
+  "environment_constraints": "Node.js v24.15.0 available via nvm. npm registry accessible. Docker available.",
+  "contribution_requirements": "TypeScript strict mode. ESM module resolution (NodeNext). SQLite via better-sqlite3 for persistence. Tests via Vitest.",
+  "key_patterns": "- MemorySystem class in src/core/memory.ts uses better-sqlite3 with WAL mode. - Tests create temp DB in os.tmpdir() with randomUUID. - LLM integration via src/integrations/openrouter.ts (chat function). - Dependency injection pattern: classes accept deps objects (e.g., LearningSystem takes { llm, memory }). - Core modules exported from src/core/index.ts. - Types defined in src/types/index.ts. - Config via zod schema validation in src/config.ts.",
+  "relevant_files": [
+    "src/core/memory.ts",
+    "src/core/learning.ts",
+    "src/core/agent.ts",
+    "src/core/index.ts",
+    "src/types/index.ts",
+    "src/config.ts",
+    "src/integrations/openrouter.ts",
+    "tests/core/memory.test.ts",
+    "tests/core/learning.test.ts",
+    "package.json",
+    "vitest.config.ts"
+  ],
+  "directory_structure": "src/core/ - Core agent modules (memory, learning, agent loop, risk, scheduler, etc). src/integrations/ - External service integrations (openrouter, solana, jupiter, github). src/strategies/ - Revenue strategy implementations. src/telegram/ - Telegram bot interface. src/types/ - TypeScript type definitions. tests/ - Mirrors src/ structure for tests."
+}

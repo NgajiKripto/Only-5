@@ -1,0 +1,7 @@
+{
+  "task_id": "task-advanced-memory-system",
+  "task_description": "Upgrade Only-5's memory system with agentmemory-inspired 4-tier memory consolidation, hybrid search (BM25 + Vector + RRF), memory lifecycle (decay, strengthening, eviction, dedup, contradiction detection), knowledge graph, and consolidation pipeline. Maintains backward compatibility with existing MemorySystem API.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}
