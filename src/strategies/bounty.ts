@@ -26,8 +26,8 @@ const DEFAULT_SEARCH_QUERIES = [
 ];
 
 export class BountyStrategy extends BaseStrategy {
-  name = "bounty";
-  description = "Hunt for bounties on GitHub issues in crypto/web3 repositories";
+  name = "github-bounty";
+  description = "Hunt for code bounties on GitHub issues in crypto/web3 repositories";
   riskLevel = RiskLevel.LOW;
   minBalance = 0; // No balance needed - this is code work
 
