@@ -29,7 +29,7 @@ export class StrategyPriorityManager {
   }
 
   calculateScore(strategy: string): number {
-    const perf = this.memory.getStrategyPerformance(strategy);
+    const perf = this.memory.getStrategyPerformanceWindowed(strategy, 7);
 
     // Revenue rate: count of successful revenue decisions in last 7 days / 168 hours
     // We use totalReward as a proxy normalized against a reasonable max

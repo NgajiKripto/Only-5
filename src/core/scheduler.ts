@@ -22,6 +22,7 @@ interface RegisteredTask {
 export class Scheduler {
   private tasks: Map<string, RegisteredTask> = new Map();
   private timers: Map<string, NodeJS.Timeout> = new Map();
+  private isRunning: boolean = false;
 
   registerTask(
     name: string,
@@ -66,6 +67,11 @@ export class Scheduler {
       lastRun: null,
       running: false,
     });
+
+    if (this.isRunning) {
+      task.start();
+      logger.debug(`Auto-started task: ${name} (scheduler is running)`);
+    }
 
     logger.info(`Registered task: ${name} (${cronExpression})`);
   }
@@ -123,6 +129,7 @@ export class Scheduler {
   }
 
   startAll(): void {
+    this.isRunning = true;
     for (const [name, registered] of this.tasks) {
       registered.task.start();
       logger.debug(`Started task: ${name}`);
@@ -131,6 +138,7 @@ export class Scheduler {
   }
 
   stopAll(): void {
+    this.isRunning = false;
     for (const [name, registered] of this.tasks) {
       registered.task.stop();
       logger.debug(`Stopped task: ${name}`);

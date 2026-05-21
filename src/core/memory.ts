@@ -164,6 +164,24 @@ export class MemorySystem {
     };
   }
 
+  getStrategyPerformanceWindowed(strategy: string, days: number): StrategyPerformance {
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    const stmt = this.db.prepare(
+      "SELECT COUNT(*) as total, SUM(CASE WHEN reward > 0 THEN 1 ELSE 0 END) as successes, COALESCE(SUM(reward), 0) as totalReward FROM decisions WHERE strategy = ? AND outcome IS NOT NULL AND timestamp >= ?"
+    );
+    const row = stmt.get(strategy, cutoff) as {
+      total: number;
+      successes: number;
+      totalReward: number;
+    };
+
+    return {
+      totalActions: row.total,
+      successRate: row.total > 0 ? row.successes / row.total : 0,
+      totalReward: row.totalReward,
+    };
+  }
+
   getRecentDecisions(limit: number = 50): DecisionRecord[] {
     const stmt = this.db.prepare(
       "SELECT * FROM decisions ORDER BY timestamp DESC LIMIT ?"
