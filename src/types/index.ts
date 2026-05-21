@@ -4,6 +4,16 @@ export enum RiskLevel {
   HIGH = "HIGH",
 }
 
+export { MemoryTier } from "../core/memory/types.js";
+export type {
+  MemoryEntry,
+  SearchResult,
+  KnowledgeGraphNode,
+  KnowledgeGraphEdge,
+  ConsolidationResult,
+  HybridSearchOptions,
+} from "../core/memory/types.js";
+
 export interface StrategyResult {
   opportunity: string;
   confidence: number;
