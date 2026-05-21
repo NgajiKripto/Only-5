@@ -85,6 +85,10 @@ export class AgentController extends EventEmitter {
     logger.info(`Registered strategy: ${strategy.name}`);
   }
 
+  getStrategy(name: string): Strategy | undefined {
+    return this.strategies.get(name);
+  }
+
   removeStrategy(name: string): void {
     this.strategies.delete(name);
     logger.info(`Removed strategy: ${name}`);

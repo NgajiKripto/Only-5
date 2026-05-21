@@ -8,6 +8,7 @@ import { registerReportCommands } from "./commands/report.js";
 import { registerControlCommands } from "./commands/control.js";
 import { registerLogsCommands } from "./commands/logs.js";
 import { registerPriorityCommands } from "./commands/priority.js";
+import { registerSecurityCommands } from "./commands/security.js";
 import { createLogger } from "../core/logger.js";
 
 const logger = createLogger("telegram");
@@ -56,6 +57,7 @@ export function setupTelegram(
   registerControlCommands(grammyBot, agent);
   registerLogsCommands(grammyBot, agent);
   registerPriorityCommands(grammyBot, agent);
+  registerSecurityCommands(grammyBot, agent);
 
   // Create alert manager
   const alertManager = new AlertManager(bot);
