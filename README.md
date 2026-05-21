@@ -10,7 +10,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-24+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Solana](https://img.shields.io/badge/Solana-Mainnet-9945FF?style=flat-square&logo=solana&logoColor=white)](https://solana.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-217%20passing-success?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/Tests-passing-success?style=flat-square)]()
 
 ---
 
@@ -33,6 +33,8 @@ The agent learns from every action it takes. A self-improvement loop analyzes pa
 | Capability | Description |
 |:-----------|:------------|
 | **Multi-Strategy Engine** | 7 revenue strategies operating in parallel, each with independent risk profiles |
+| **Strategy Prioritization** | Dynamic tier-based strategy ranking that adjusts execution priority based on performance scores |
+| **Fallback System** | Automatic mode switching when revenue drought is detected |
 | **Self-Improvement** | LLM-driven learning cycle extracts patterns from decision history |
 | **Risk Management** | Daily loss limits, position sizing, exposure caps, cooldown periods |
 | **MCP Execution Layer** | All actions pass through a controlled gatekeeper with audit trail |
@@ -49,15 +51,15 @@ The agent learns from every action it takes. A self-improvement loop analyzes pa
 │                          Only-5 Agent Loop                           │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
-│   ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐    │
-│   │ Evaluate │───>│   Rank   │───>│   Risk   │───>│ Execute  │    │
-│   │Strategies│    │  (LLM)   │    │  Check   │    │          │    │
-│   └──────────┘    └──────────┘    └──────────┘    └──────────┘    │
-│         │                                               │          │
-│         │              ┌──────────┐                     │          │
-│         └──────────────│  Learn   │<────────────────────┘          │
-│                        │ (6h loop)│                                 │
-│                        └──────────┘                                 │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────┐ │
+│  │ Evaluate │─>│Prioritize│─>│   Rank   │─>│   Risk   │─>│ Exec│ │
+│  │Strategies│  │ (Tiers)  │  │  (LLM)   │  │  Check   │  │     │ │
+│  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └─────┘ │
+│        │                                                     │     │
+│        │              ┌──────────┐    ┌──────────┐           │     │
+│        └──────────────│  Learn   │───>│ Fallback │<──────────┘     │
+│                       │ (6h loop)│    │  Monitor │                  │
+│                       └──────────┘    └──────────┘                  │
 │                                                                     │
 ├─────────────────────────────────────────────────────────────────────┤
 │  MCP Execution Layer: Permission · Rate Limit · Sanitize · Audit   │
@@ -67,10 +69,13 @@ The agent learns from every action it takes. A self-improvement loop analyzes pa
 Every 30 seconds, the agent:
 
 1. **Evaluates** all enabled strategies for opportunities
-2. **Ranks** opportunities using LLM analysis (confidence, reward, risk)
-3. **Validates** against risk manager (daily limits, exposure caps, cooldowns)
-4. **Executes** through the MCP gatekeeper with full audit logging
-5. **Records** outcomes for the learning system to analyze
+2. **Prioritizes** strategies by tier (CRITICAL, HIGH, MEDIUM, LOW, DORMANT) based on performance scores
+3. **Ranks** opportunities using LLM analysis (confidence, reward, risk)
+4. **Validates** against risk manager (daily limits, exposure caps, cooldowns)
+5. **Executes** through the MCP gatekeeper with full audit logging
+6. **Records** outcomes for the learning system to analyze
+
+If no revenue is generated for an extended period, the fallback system automatically shifts operating mode to prioritize recovery strategies.
 
 ---
 
@@ -110,6 +115,8 @@ src/
 │   ├── memory.ts         # SQLite persistence + pruning
 │   ├── wallet.ts         # Solana wallet (encapsulated signing)
 │   ├── scheduler.ts      # Cron-based task scheduling
+│   ├── strategy-priority.ts # Dynamic strategy tier prioritization (score-based)
+│   ├── fallback.ts       # Revenue drought fallback mode manager
 │   └── logger.ts         # Structured logging (Winston)
 ├── strategies/
 │   ├── base.ts           # Abstract strategy interface
@@ -168,7 +175,7 @@ npm start
 
 ```bash
 npm run dev             # Run with tsx (auto-reload)
-npm test               # Run test suite (217 tests)
+npm test               # Run test suite
 npm run build          # TypeScript compilation
 ```
 
@@ -282,7 +289,7 @@ The risk manager tracks open positions in real-time and blocks any trade that wo
 The learning loop runs every 6 hours:
 
 ```
-Fetch Decisions → Group by Strategy → LLM Pattern Analysis → Extract Insights → Persist Skills → Update Confidence
+Fetch Decisions → Group by Strategy → LLM Pattern Analysis → Extract Insights → Persist Skills → Update Confidence → Update Priority Tiers
 ```
 
 **What it learns:**
@@ -291,7 +298,7 @@ Fetch Decisions → Group by Strategy → LLM Pattern Analysis → Extract Insig
 - Risk patterns that precede losses
 - Market conditions that correlate with success
 
-Confidence scores adjust strategy selection priority over time.
+Confidence scores adjust strategy selection priority over time. The learning loop also feeds into the strategy priority system, updating tier assignments (CRITICAL, HIGH, MEDIUM, LOW, DORMANT) based on observed performance patterns. Strategies that consistently underperform are demoted, while emerging winners are promoted to higher execution priority.
 
 ---
 
@@ -314,13 +321,13 @@ Strategy → MCP Layer → [Permission Check] → [Rate Limit] → [Sanitize] �
 ## Testing
 
 ```bash
-npm test                              # All 217 tests
+npm test                              # All tests
 npx vitest run tests/core/risk.test.ts    # Specific file
 npx vitest run --coverage             # Coverage report
 ```
 
 Test coverage includes:
-- Core modules (memory, scheduler, wallet, risk, learning)
+- Core modules (memory, scheduler, wallet, risk, learning, strategy-priority, fallback)
 - Strategy evaluation and execution
 - MCP execution layer (permissions, rate limiting, sanitization)
 - Telegram command handlers
