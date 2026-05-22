@@ -10,7 +10,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-24+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Solana](https://img.shields.io/badge/Solana-Mainnet-9945FF?style=flat-square&logo=solana&logoColor=white)](https://solana.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-passing-success?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/Tests-353%20passing-success?style=flat-square)]()
 
 ---
 
@@ -35,12 +35,13 @@ The agent learns from every action it takes. A self-improvement loop analyzes pa
 | **Multi-Strategy Engine** | 7 revenue strategies operating in parallel, each with independent risk profiles |
 | **Strategy Prioritization** | Dynamic tier-based strategy ranking that adjusts execution priority based on performance scores |
 | **Fallback System** | Automatic mode switching when revenue drought is detected |
+| **Advanced Memory** | 4-tier memory consolidation (Working/Episodic/Semantic/Procedural) with hybrid search, knowledge graph, and Ebbinghaus decay |
 | **Self-Improvement** | LLM-driven learning cycle extracts patterns from decision history |
 | **Risk Management** | Daily loss limits, position sizing, exposure caps, cooldown periods |
 | **MCP Execution Layer** | All actions pass through a controlled gatekeeper with audit trail |
 | **Security Scanner** | Built-in vulnerability assessment for paid scanning services |
 | **Telegram Interface** | Full monitoring, control, and alert system via bot commands |
-| **Persistent Memory** | SQLite-backed decision history, skills, and observations |
+| **Persistent Memory** | 4-tier memory system with hybrid search (BM25 + Vector + RRF fusion), knowledge graph, and automatic consolidation |
 
 ---
 
@@ -56,10 +57,10 @@ The agent learns from every action it takes. A self-improvement loop analyzes pa
 │  │Strategies│  │ (Tiers)  │  │  (LLM)   │  │  Check   │  │     │ │
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘  └─────┘ │
 │        │                                                     │     │
-│        │              ┌──────────┐    ┌──────────┐           │     │
-│        └──────────────│  Learn   │───>│ Fallback │<──────────┘     │
-│                       │ (6h loop)│    │  Monitor │                  │
-│                       └──────────┘    └──────────┘                  │
+│        │    ┌──────────┐  ┌──────────┐  ┌──────────┐        │     │
+│        └────│  Learn   │─>│  Memory  │─>│ Fallback │<───────┘     │
+│             │ (6h loop)│  │(4-tier)  │  │  Monitor │               │
+│             └──────────┘  └──────────┘  └──────────┘               │
 │                                                                     │
 ├─────────────────────────────────────────────────────────────────────┤
 │  MCP Execution Layer: Permission · Rate Limit · Sanitize · Audit   │
@@ -69,13 +70,12 @@ The agent learns from every action it takes. A self-improvement loop analyzes pa
 Every 30 seconds, the agent:
 
 1. **Evaluates** all enabled strategies for opportunities
-2. **Prioritizes** strategies by tier (CRITICAL, HIGH, MEDIUM, LOW, DORMANT) based on performance scores
+2. **Prioritizes** strategies by tier (CRITICAL, HIGH, MEDIUM, LOW, DORMANT)
 3. **Ranks** opportunities using LLM analysis (confidence, reward, risk)
 4. **Validates** against risk manager (daily limits, exposure caps, cooldowns)
 5. **Executes** through the MCP gatekeeper with full audit logging
-6. **Records** outcomes for the learning system to analyze
-
-If no revenue is generated for an extended period, the fallback system automatically shifts operating mode to prioritize recovery strategies.
+6. **Records** outcomes and captures observations into 4-tier memory
+7. **Fallback system** monitors revenue drought and adjusts operating mode
 
 ---
 
@@ -108,16 +108,26 @@ Disabled ──> Enabled ──> Evaluating ──> Opportunity Found ──> Ri
 ```
 src/
 ├── core/
-│   ├── agent.ts          # Main orchestration loop (30s cycle)
-│   ├── mcp.ts            # MCP execution layer (gatekeeper)
-│   ├── risk.ts           # Risk management (limits, exposure, cooldown)
-│   ├── learning.ts       # Self-improvement cycle (6h)
-│   ├── memory.ts         # SQLite persistence + pruning
-│   ├── wallet.ts         # Solana wallet (encapsulated signing)
-│   ├── scheduler.ts      # Cron-based task scheduling
-│   ├── strategy-priority.ts # Dynamic strategy tier prioritization (score-based)
-│   ├── fallback.ts       # Revenue drought fallback mode manager
-│   └── logger.ts         # Structured logging (Winston)
+│   ├── agent.ts              # Main orchestration loop (30s cycle)
+│   ├── mcp.ts                # MCP execution layer (gatekeeper)
+│   ├── risk.ts               # Risk management (limits, exposure, cooldown)
+│   ├── learning.ts           # Self-improvement cycle (6h) + consolidation trigger
+│   ├── memory.ts             # Memory facade (backward-compatible API)
+│   ├── wallet.ts             # Solana wallet (encapsulated signing)
+│   ├── scheduler.ts          # Cron-based task scheduling
+│   ├── strategy-priority.ts  # Dynamic strategy tier prioritization
+│   ├── fallback.ts           # Revenue drought fallback mode manager
+│   ├── logger.ts             # Structured logging (Winston)
+│   └── memory/
+│       ├── storage.ts        # SQLite tables for 4-tier memory + knowledge graph
+│       ├── types.ts          # MemoryTier, MemoryEntry, SearchResult types
+│       ├── embedding.ts      # TF-IDF embedding (128-dim, local, no API key)
+│       ├── search.ts         # Hybrid search (BM25 + Vector + RRF fusion)
+│       ├── lifecycle.ts      # Ebbinghaus decay, strengthening, eviction, dedup
+│       ├── knowledge-graph.ts # Entity extraction + BFS traversal
+│       ├── consolidation.ts  # Working → Episodic → Semantic → Procedural
+│       ├── privacy.ts        # Sensitive data filtering before storage
+│       └── advanced-memory-system.ts  # Facade composing all subsystems
 ├── strategies/
 │   ├── base.ts           # Abstract strategy interface
 │   ├── onchain.ts        # Jupiter round-trip arbitrage
@@ -175,7 +185,7 @@ npm start
 
 ```bash
 npm run dev             # Run with tsx (auto-reload)
-npm test               # Run test suite
+npm test               # Run test suite (353 tests)
 npm run build          # TypeScript compilation
 ```
 
@@ -289,7 +299,7 @@ The risk manager tracks open positions in real-time and blocks any trade that wo
 The learning loop runs every 6 hours:
 
 ```
-Fetch Decisions → Group by Strategy → LLM Pattern Analysis → Extract Insights → Persist Skills → Update Confidence → Update Priority Tiers
+Fetch Decisions → Group by Strategy → LLM Pattern Analysis → Extract Insights → Persist Skills → Update Confidence → Trigger Memory Consolidation → Update Priority Tiers
 ```
 
 **What it learns:**
@@ -298,7 +308,57 @@ Fetch Decisions → Group by Strategy → LLM Pattern Analysis → Extract Insig
 - Risk patterns that precede losses
 - Market conditions that correlate with success
 
-Confidence scores adjust strategy selection priority over time. The learning loop also feeds into the strategy priority system, updating tier assignments (CRITICAL, HIGH, MEDIUM, LOW, DORMANT) based on observed performance patterns. Strategies that consistently underperform are demoted, while emerging winners are promoted to higher execution priority.
+Confidence scores adjust strategy selection priority over time. The learning loop also feeds into the strategy priority system, updating tier assignments (CRITICAL, HIGH, MEDIUM, LOW, DORMANT) based on observed performance patterns. Strategies that consistently underperform are demoted, while emerging winners are promoted to higher execution priority. The learning loop also triggers memory consolidation, compressing working memories into higher tiers for long-term retention.
+
+---
+
+## Advanced Memory System
+
+Inspired by [agentmemory](https://github.com/rohitg00/agentmemory), Only-5 uses a 4-tier memory consolidation system that mimics human memory processing:
+
+### 4-Tier Memory Model
+
+| Tier | What | Decay Factor | Analogy |
+|:-----|:-----|:-------------|:--------|
+| **Working** | Raw observations from strategy execution | 1.0x | Short-term memory |
+| **Episodic** | Compressed session summaries | 1.5x | "What happened" |
+| **Semantic** | Extracted facts and patterns | 2.0x | "What I know" |
+| **Procedural** | Workflows and decision patterns | 3.0x | "How to do it" |
+
+### Memory Pipeline
+
+After each strategy execution:
+1. **Capture** — Observation recorded with privacy filtering
+2. **Dedup** — SHA-256 hash check within 5-minute window
+3. **Embed** — TF-IDF vector generated (128 dimensions, local)
+4. **Index** — Stored in SQLite with tier assignment
+5. **Graph** — Entities extracted and added to knowledge graph
+
+### Consolidation (runs with 6h learning cycle)
+
+```
+Working memories older than 1 hour → compress into Episodic
+Episodic memories older than 24 hours → extract facts into Semantic
+Semantic memories accessed 3+ times and older than 7 days → distill into Procedural
+```
+
+### Hybrid Search
+
+Three search streams fused with Reciprocal Rank Fusion (RRF, k=60):
+
+| Stream | Method | Weight |
+|:-------|:-------|:-------|
+| **BM25** | Stemmed keyword matching with IDF scoring | 0.4 |
+| **Vector** | Cosine similarity over TF-IDF embeddings | 0.6 |
+| **Graph** | Knowledge graph BFS traversal | bonus |
+
+### Memory Lifecycle
+
+- **Ebbinghaus decay** — Retention = e^(-t/strength), memories weaken over time
+- **Access strengthening** — Each retrieval increases decay resistance (logarithmic)
+- **Contradiction detection** — High-overlap entries with negation indicators flagged
+- **Auto-eviction** — Memories below confidence threshold pruned automatically
+- **Privacy filter** — Private keys, API keys, bearer tokens stripped before storage
 
 ---
 
@@ -321,13 +381,14 @@ Strategy → MCP Layer → [Permission Check] → [Rate Limit] → [Sanitize] �
 ## Testing
 
 ```bash
-npm test                              # All tests
+npm test                              # All 353 tests
 npx vitest run tests/core/risk.test.ts    # Specific file
 npx vitest run --coverage             # Coverage report
 ```
 
 Test coverage includes:
 - Core modules (memory, scheduler, wallet, risk, learning, strategy-priority, fallback)
+- Advanced memory system (4-tier storage, hybrid search, lifecycle, knowledge graph, consolidation, privacy)
 - Strategy evaluation and execution
 - MCP execution layer (permissions, rate limiting, sanitization)
 - Telegram command handlers
@@ -343,6 +404,7 @@ Only-5 draws architectural inspiration from:
 - **[Hermes Agent](https://github.com/nousresearch/hermes-agent)** — Self-improvement loop, skill memory, scheduled automations
 - **[MiroFish](https://github.com/666ghj/MiroFish)** — Multi-agent decision making, prediction capabilities
 - **[Dark-Moon](https://github.com/ASCIT31/Dark-Moon)** — MCP execution gatekeeper, security scanning, sub-agent orchestration
+- **[agentmemory](https://github.com/rohitg00/agentmemory)** — 4-tier memory consolidation, hybrid search (BM25 + Vector + RRF), Ebbinghaus decay, knowledge graph
 
 ---
 
