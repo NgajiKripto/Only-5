@@ -14,10 +14,18 @@ const CRITICAL_KEYWORDS = ["risk", "danger", "security", "vulnerability", "criti
 const LIGHTWEIGHT_KEYWORDS = ["format", "classify", "yes or no", "true or false", "simple", "list", "name", "count"];
 
 /**
- * Examines message content for keywords to determine task complexity.
+ * Examines the LAST user message content for keywords to determine task complexity.
+ * Only the last user message is checked to avoid false-positives from system prompts
+ * or earlier messages that may contain triggering keywords (e.g., "risk", "security").
  */
 export function classifyTask(messages: LLMMessage[]): TaskComplexity {
-  const content = messages.map((m) => m.content.toLowerCase()).join(" ");
+  // Find the last user message to avoid false-positives from system prompts
+  const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
+  if (!lastUserMessage) {
+    return TaskComplexity.STANDARD;
+  }
+
+  const content = lastUserMessage.content.toLowerCase();
 
   for (const keyword of CRITICAL_KEYWORDS) {
     if (content.includes(keyword)) {
@@ -142,9 +150,10 @@ export async function routedChat(
 
   logger.debug("Routing request", { complexity, tier, model });
 
-  // Apply compression for LIGHTWEIGHT or STANDARD tasks (unless explicitly disabled)
+  // Apply compression for LIGHTWEIGHT tasks only (unless explicitly disabled).
+  // STANDARD tasks get full context to preserve analysis quality.
   let processedMessages = messages;
-  if (options.enableCompression !== false && (complexity === TaskComplexity.LIGHTWEIGHT || complexity === TaskComplexity.STANDARD)) {
+  if (options.enableCompression !== false && complexity === TaskComplexity.LIGHTWEIGHT) {
     processedMessages = compressContext(processedMessages);
   }
 
@@ -153,7 +162,13 @@ export async function routedChat(
     processedMessages = injectTersePrompt(processedMessages);
   }
 
-  // Attempt chat with selected model, fallback on failure
+  // Attempt chat with selected model, fallback on failure.
+  // NOTE: Latency trade-off -- the fallback is single-hop only. If TIER_1 fails,
+  // it demotes to TIER_2. A TIER_2 failure after that throws to the caller.
+  // Each tier has its own retry loop inside chat() (3 attempts with exponential backoff),
+  // so worst-case a failing CRITICAL request can accumulate ~14s of sleep across both tiers.
+  // This is intentional: exhausting retries before falling back maximizes the chance of
+  // staying on the preferred tier during transient issues (e.g., brief 429 bursts).
   try {
     return await chat(processedMessages, {
       model,

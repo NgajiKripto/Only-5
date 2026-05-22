@@ -143,10 +143,3 @@ export interface RouterOptions {
   temperature?: number;
   maxTokens?: number;
 }
-
-export interface RouterStats {
-  totalRequests: number;
-  requestsByTier: Record<ModelTier, number>;
-  fallbackCount: number;
-  tokensSaved: number;
-}
