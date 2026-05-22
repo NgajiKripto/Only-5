@@ -25,6 +25,11 @@ const configSchema = z.object({
     .default("info"),
   DB_PATH: z.string().default("./data/only5.db"),
   AGENT_NAME: z.string().default("Only-5"),
+  LLM_TIER1_MODEL: z.string().default("anthropic/claude-sonnet-4"),
+  LLM_TIER2_MODEL: z.string().default("meta-llama/llama-3.1-8b-instruct:free"),
+  LLM_TIER3_MODEL: z.string().default("google/gemma-2-9b-it:free"),
+  LLM_ROUTER_ENABLED: z.string().default("true"),
+  LLM_TERSE_MODE: z.string().default("true"),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -46,6 +51,11 @@ export const config: Config = configSchema.parse({
   LOG_LEVEL: process.env.LOG_LEVEL || undefined,
   DB_PATH: process.env.DB_PATH || undefined,
   AGENT_NAME: process.env.AGENT_NAME || undefined,
+  LLM_TIER1_MODEL: process.env.LLM_TIER1_MODEL || undefined,
+  LLM_TIER2_MODEL: process.env.LLM_TIER2_MODEL || undefined,
+  LLM_TIER3_MODEL: process.env.LLM_TIER3_MODEL || undefined,
+  LLM_ROUTER_ENABLED: process.env.LLM_ROUTER_ENABLED || undefined,
+  LLM_TERSE_MODE: process.env.LLM_TERSE_MODE || undefined,
 });
 
 // If no owner chat ID and no passphrase configured, use the generated default

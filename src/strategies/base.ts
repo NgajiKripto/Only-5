@@ -1,11 +1,11 @@
 import type { MemorySystem, StrategyPerformance } from "../core/memory.js";
 import type { WalletManager } from "../core/wallet.js";
-import type { LLMMessage, LLMResponse, Strategy, StrategyResult, ExecutionResult, RiskLevel } from "../types/index.js";
-import { chat } from "../integrations/openrouter.js";
+import type { LLMMessage, LLMResponse, Strategy, StrategyResult, ExecutionResult, RiskLevel, RouterOptions } from "../types/index.js";
+import { TaskComplexity } from "../types/index.js";
 import { createLogger } from "../core/logger.js";
 
 export interface StrategyDependencies {
-  llm: typeof chat;
+  llm: (messages: LLMMessage[], options?: RouterOptions | { temperature?: number; maxTokens?: number; model?: string }) => Promise<LLMResponse>;
   memory: MemorySystem;
   wallet: WalletManager;
   logger: ReturnType<typeof createLogger>;
@@ -20,7 +20,7 @@ export abstract class BaseStrategy implements Strategy {
 
   enabled: boolean = true;
 
-  protected llm: typeof chat;
+  protected llm: StrategyDependencies["llm"];
   protected memory: MemorySystem;
   protected wallet: WalletManager;
   protected logger: ReturnType<typeof createLogger>;
@@ -75,6 +75,6 @@ export abstract class BaseStrategy implements Strategy {
       },
     ];
 
-    return this.llm(messages, { temperature: 0.5 });
+    return this.llm(messages, { temperature: 0.5, taskComplexity: TaskComplexity.STANDARD });
   }
 }
