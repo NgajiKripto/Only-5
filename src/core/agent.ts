@@ -47,7 +47,7 @@ export class AgentController extends EventEmitter {
   constructor(options?: AgentOptions) {
     super();
     this.options = options ?? {};
-    this.memory = new MemorySystem();
+    this.memory = new MemorySystem(undefined, chat);
     this.wallet = new WalletManager(this.memory);
     this.scheduler = new Scheduler();
   }
@@ -219,6 +219,18 @@ export class AgentController extends EventEmitter {
         logger.info(
           `Evaluation interval changed: ${oldInterval}s -> ${newInterval}s`
         );
+      }
+    });
+
+    // Memory maintenance every hour
+    this.scheduler.registerTask("memory-maintenance", "0 * * * *", () => {
+      try {
+        const evicted = this.memory.runMaintenance();
+        if (evicted > 0) {
+          logger.info(`Memory maintenance: evicted ${evicted} stale memories`);
+        }
+      } catch (error) {
+        logger.error("Memory maintenance failed", { error: (error as Error).message });
       }
     });
 
@@ -425,6 +437,16 @@ export class AgentController extends EventEmitter {
         executionResult.success ? "success" : "failure",
         executionResult.profitLoss
       );
+
+      // Capture observation for advanced memory
+      try {
+        await this.memory.captureObservation(
+          `Strategy ${selected.strategy.name} executed: ${selected.result.opportunity}. Result: ${executionResult.success ? "success" : "failure"}, P/L: ${executionResult.profitLoss}`,
+          { strategy: selected.strategy.name, success: executionResult.success, profitLoss: executionResult.profitLoss }
+        );
+      } catch (obsError) {
+        logger.warn("Failed to capture observation", { error: (obsError as Error).message });
+      }
 
       // Record in risk manager
       this.riskManager.recordTrade(

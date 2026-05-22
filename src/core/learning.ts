@@ -58,6 +58,13 @@ export class LearningSystem {
 
       await this.persistLearnings(insights);
 
+      // Trigger consolidation after persisting insights
+      try {
+        await this.memory.runConsolidation();
+      } catch (consolidationError) {
+        logger.warn("Consolidation during learning cycle failed", { error: (consolidationError as Error).message });
+      }
+
       logger.info(`Learning cycle complete: ${insights.length} insights extracted`);
       return insights;
     } catch (error) {
@@ -105,6 +112,10 @@ export class LearningSystem {
 
   getConfidence(strategy: string): number {
     return this.confidenceScores.get(strategy) ?? 0.5;
+  }
+
+  async triggerConsolidation(): Promise<void> {
+    await this.memory.runConsolidation();
   }
 
   getInsights(strategy?: string): LearningInsight[] {

@@ -3,6 +3,14 @@ import { v4 as uuidv4 } from "uuid";
 import { config } from "../config.js";
 import { createLogger } from "./logger.js";
 import { PriorityTier, StrategyPriorityRecord } from "../types/index.js";
+import { AdvancedMemorySystem } from "./memory/advanced-memory-system.js";
+import type { SearchResult, HybridSearchOptions } from "./memory/types.js";
+import type { LLMMessage, LLMResponse } from "../types/index.js";
+
+type LLMFunction = (
+  messages: LLMMessage[],
+  options?: { temperature?: number; maxTokens?: number }
+) => Promise<LLMResponse>;
 
 const logger = createLogger("memory");
 
@@ -40,13 +48,15 @@ export interface StrategyPerformance {
 
 export class MemorySystem {
   private db: Database.Database;
+  private advanced: AdvancedMemorySystem;
 
-  constructor(dbPath?: string) {
+  constructor(dbPath?: string, llm?: LLMFunction | null) {
     const path = dbPath ?? config.DB_PATH;
     logger.info(`Initializing memory system at ${path}`);
     this.db = new Database(path);
     this.db.pragma("journal_mode = WAL");
     this.initialize();
+    this.advanced = new AdvancedMemorySystem(this.db, llm);
   }
 
   private initialize(): void {
@@ -282,5 +292,39 @@ export class MemorySystem {
     // VACUUM to reclaim disk space
     this.db.exec("VACUUM");
     logger.debug("Database VACUUM completed");
+  }
+
+  // --- Advanced Memory System Methods ---
+
+  async smartSearch(query: string, options?: HybridSearchOptions): Promise<SearchResult[]> {
+    return this.advanced.smartSearch(query, options);
+  }
+
+  async captureObservation(content: string, metadata?: Record<string, unknown>): Promise<string> {
+    return this.advanced.captureObservation(content, metadata);
+  }
+
+  async runConsolidation(): Promise<void> {
+    return this.advanced.runConsolidation();
+  }
+
+  runMaintenance(): number {
+    return this.advanced.runMaintenance();
+  }
+
+  getMemoryStats(): {
+    working: number;
+    episodic: number;
+    semantic: number;
+    procedural: number;
+    totalEntries: number;
+    graphNodes: number;
+    graphEdges: number;
+  } {
+    return this.advanced.getMemoryStats();
+  }
+
+  getAdvancedMemory(): AdvancedMemorySystem {
+    return this.advanced;
   }
 }

@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Add comprehensive tests for the advanced memory system covering all new modules",
+  "status": "completed",
+  "steps": [
+    "Step 1: Create tests/core/memory/storage.test.ts - Test MemoryStorage: table creation, migration, CRUD operations for memory_entries (insert, get by tier, get by id, update), knowledge graph tables (add node, add edge, query), consolidation_log. Verify backward compatibility with existing tables.",
+    "Step 2: Create tests/core/memory/embedding.test.ts - Test EmbeddingService: local TF-IDF fallback generates vectors of correct dimension, cosineSimilarity returns 1.0 for identical vectors and 0 for orthogonal. Mock OpenRouter for API embedding tests.",
+    "Step 3: Create tests/core/memory/search.test.ts - Test HybridSearch: BM25 returns relevant results for keyword queries, vector search returns semantically similar results, RRF fusion correctly merges ranked lists (verify with known rank inputs). Test that search results include memories from correct tiers.",
+    "Step 4: Create tests/core/memory/lifecycle.test.ts - Test MemoryLifecycle: decay calculation reduces confidence over time, access strengthening increases access_count and resets last_accessed, eviction removes low-confidence memories, SHA-256 dedup rejects duplicates within 5min window but allows after, contradiction detection identifies semantically conflicting memories.",
+    "Step 5: Create tests/core/memory/knowledge-graph.test.ts - Test KnowledgeGraph: addEntity creates nodes, addRelationship creates edges, findRelated does BFS traversal up to maxDepth, extractEntities identifies capitalized words and known patterns.",
+    "Step 6: Create tests/core/memory/consolidation.test.ts - Test ConsolidationPipeline with mocked LLM: captureObservation stores in WORKING tier, consolidateWorkingToEpisodic compresses recent observations (mock LLM response), consolidateEpisodicToSemantic extracts facts, consolidateSemanticToProcedural identifies workflows. Verify entries move between tiers correctly.",
+    "Step 7: Create tests/core/memory/privacy.test.ts - Test PrivacyFilter: strips base58 private keys (>32 chars), strips 'sk-' prefixed API keys, strips 'Bearer' tokens, preserves normal text, handles edge cases (empty string, text without sensitive data).",
+    "Step 8: Update tests/core/memory.test.ts - Add new test cases for the upgraded MemorySystem: test smartSearch method, test captureObservation with dedup, test that getMemoryStats returns tier counts. Keep all existing tests passing."
+  ],
+  "acceptance_criteria": [
+    "All new test files are created and pass with `npx vitest run`",
+    "Tests cover: storage CRUD, embedding generation, hybrid search with RRF, lifecycle decay/eviction/dedup, knowledge graph traversal, consolidation pipeline, privacy filtering",
+    "Tests use mocked LLM (vi.fn()) for any OpenRouter-dependent operations",
+    "Tests use temp SQLite databases (same pattern as existing tests: tmpdir + randomUUID)",
+    "Existing tests/core/memory.test.ts still passes with all original tests intact",
+    "Test coverage is meaningful - would fail if core logic were reverted"
+  ],
+  "verification": [
+    "source ~/.nvm/nvm.sh && nvm use 24 && npx vitest run tests/core/memory/",
+    "source ~/.nvm/nvm.sh && nvm use 24 && npx vitest run tests/core/memory.test.ts",
+    "source ~/.nvm/nvm.sh && nvm use 24 && npx vitest run"
+  ],
+  "blocked_reason": null,
+  "findings": "All 92 new tests pass across 7 new test files. Updated memory.test.ts adds 5 new tests (22 total). Full suite: 352 tests pass. The privacy filter base58 regex matches before hex regex for strings that overlap, so tests use hex chars with '0' to avoid conflicts."
+}

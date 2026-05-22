@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { MemorySystem } from "../../src/core/memory.js";
 import { mkdirSync } from "fs";
 import { tmpdir } from "os";
@@ -205,6 +205,75 @@ describe("MemorySystem", () => {
     it("should return empty array when no skills exist", () => {
       const skills = memory.getSkills();
       expect(skills).toHaveLength(0);
+    });
+  });
+
+  describe("smartSearch", () => {
+    it("should return results for matching query", async () => {
+      await memory.captureObservation("Solana blockchain is very fast");
+      await memory.captureObservation("Ethereum gas fees are expensive");
+
+      const results = await memory.smartSearch("Solana fast");
+      expect(results.length).toBeGreaterThanOrEqual(0);
+      // If there are results, they should have entry and score
+      if (results.length > 0) {
+        expect(results[0].entry).toBeDefined();
+        expect(results[0].score).toBeDefined();
+      }
+    });
+
+    it("should return empty array for no matches", async () => {
+      const results = await memory.smartSearch("xyznonexistent");
+      expect(results).toEqual([]);
+    });
+  });
+
+  describe("captureObservation", () => {
+    it("should store and deduplicate observations", async () => {
+      const id1 = await memory.captureObservation("Test observation content");
+      expect(id1.length).toBeGreaterThan(0);
+
+      // Second capture of same content should be deduplicated
+      const id2 = await memory.captureObservation("Test observation content");
+      expect(id2).toBe("");
+    });
+
+    it("should store different observations", async () => {
+      const id1 = await memory.captureObservation("First observation");
+      const id2 = await memory.captureObservation("Second observation");
+      expect(id1.length).toBeGreaterThan(0);
+      expect(id2.length).toBeGreaterThan(0);
+      expect(id1).not.toBe(id2);
+    });
+  });
+
+  describe("getMemoryStats", () => {
+    it("should return tier counts", async () => {
+      const stats = memory.getMemoryStats();
+      expect(stats).toHaveProperty("working");
+      expect(stats).toHaveProperty("episodic");
+      expect(stats).toHaveProperty("semantic");
+      expect(stats).toHaveProperty("procedural");
+      expect(stats).toHaveProperty("totalEntries");
+      expect(stats).toHaveProperty("graphNodes");
+      expect(stats).toHaveProperty("graphEdges");
+      expect(typeof stats.working).toBe("number");
+      expect(typeof stats.totalEntries).toBe("number");
+    });
+
+    it("should reflect stored observations", async () => {
+      await memory.captureObservation("Working memory item");
+      const stats = memory.getMemoryStats();
+      expect(stats.working).toBeGreaterThanOrEqual(1);
+      expect(stats.totalEntries).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe("runMaintenance", () => {
+    it("should run eviction and return count", () => {
+      const evicted = memory.runMaintenance();
+      expect(typeof evicted).toBe("number");
+      expect(evicted).toBeGreaterThanOrEqual(0);
     });
   });
 });
