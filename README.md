@@ -10,7 +10,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-24+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Solana](https://img.shields.io/badge/Solana-Mainnet-9945FF?style=flat-square&logo=solana&logoColor=white)](https://solana.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-353%20passing-success?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/Tests-374%20passing-success?style=flat-square)]()
 
 ---
 
@@ -42,6 +42,7 @@ The agent learns from every action it takes. A self-improvement loop analyzes pa
 | **Security Scanner** | Built-in vulnerability assessment for paid scanning services |
 | **Telegram Interface** | Full monitoring, control, and alert system via bot commands |
 | **Persistent Memory** | 4-tier memory system with hybrid search (BM25 + Vector + RRF fusion), knowledge graph, and automatic consolidation |
+| **LLM Router** | Smart 3-tier model routing with auto-fallback, token compression, and terse mode for cost optimization |
 
 ---
 
@@ -112,6 +113,7 @@ src/
 │   ├── mcp.ts                # MCP execution layer (gatekeeper)
 │   ├── risk.ts               # Risk management (limits, exposure, cooldown)
 │   ├── learning.ts           # Self-improvement cycle (6h) + consolidation trigger
+│   ├── llm-router.ts          # Smart LLM routing (3-tier model selection, auto-fallback, compression)
 │   ├── memory.ts             # Memory facade (backward-compatible API)
 │   ├── wallet.ts             # Solana wallet (encapsulated signing)
 │   ├── scheduler.ts          # Cron-based task scheduling
@@ -185,7 +187,7 @@ npm start
 
 ```bash
 npm run dev             # Run with tsx (auto-reload)
-npm test               # Run test suite (353 tests)
+npm test               # Run test suite (374 tests)
 npm run build          # TypeScript compilation
 ```
 
@@ -213,6 +215,11 @@ SOLANA_PRIVATE_KEY=         # Base58-encoded wallet private key
 | `LOG_LEVEL` | `info` | Logging verbosity |
 | `DB_PATH` | `./data/only5.db` | SQLite database path |
 | `AGENT_NAME` | `Only-5` | Display name in logs/alerts |
+| `LLM_TIER1_MODEL` | `anthropic/claude-sonnet-4` | Premium model for critical tasks |
+| `LLM_TIER2_MODEL` | `meta-llama/llama-3.1-8b-instruct:free` | Standard model for general tasks |
+| `LLM_TIER3_MODEL` | `google/gemma-2-9b-it:free` | Cheap/free model for simple tasks |
+| `LLM_ROUTER_ENABLED` | `true` | Enable/disable LLM routing |
+| `LLM_TERSE_MODE` | `true` | Enable/disable terse mode for lightweight tasks |
 
 ---
 
@@ -312,6 +319,77 @@ Confidence scores adjust strategy selection priority over time. The learning loo
 
 ---
 
+## LLM Router
+
+Inspired by [9Router](https://github.com/decolua/9router), Only-5 includes an intelligent LLM routing system that classifies tasks by complexity and routes them to the most cost-effective model tier. This can reduce LLM operational costs by 40-60% without sacrificing quality on critical decisions.
+
+### How It Works
+
+```
+LLM Request
+    │
+    ▼
+┌─────────────────────────────────┐
+│   Task Classifier               │
+│   (keyword analysis on last     │
+│    user message)                │
+├─────────────────────────────────┤
+│ CRITICAL  → Tier 1 (Premium)   │
+│ STANDARD  → Tier 2 (Default)   │
+│ LIGHTWEIGHT → Tier 3 (Free)    │
+└────────────┬────────────────────┘
+             │
+             ▼
+┌─────────────────────────────────┐
+│   Processing Pipeline           │
+│   • Token Compression (LIGHT)   │
+│   • Terse Mode Injection (LIGHT)│
+└────────────┬────────────────────┘
+             │
+             ▼
+┌─────────────────────────────────┐
+│   Execute with Auto-Fallback    │
+│   Tier 1 fail → Tier 2         │
+│   Tier 2 fail → Tier 3         │
+└─────────────────────────────────┘
+```
+
+### Task Classification
+
+| Complexity | Keywords | Routed To | Use Case |
+|:-----------|:---------|:----------|:---------|
+| **CRITICAL** | risk, security, vulnerability, attack, danger | Tier 1 (Premium) | Risk analysis, security scanning, pattern extraction |
+| **STANDARD** | (generic messages) | Tier 2 (Default) | Opportunity evaluation, learning cycle, strategy ranking |
+| **LIGHTWEIGHT** | format, classify, yes/no, list, count, simple | Tier 3 (Free) | Simple classification, formatting, yes/no decisions |
+
+### Model Tiers
+
+| Tier | Default Model | Cost | Purpose |
+|:-----|:-------------|:-----|:--------|
+| **Tier 1** | `anthropic/claude-sonnet-4` | Premium | Critical decisions requiring highest accuracy |
+| **Tier 2** | `meta-llama/llama-3.1-8b-instruct:free` | Free | Standard tasks with good quality |
+| **Tier 3** | `google/gemma-2-9b-it:free` | Free | Simple tasks where speed > quality |
+
+### Token Optimization Features
+
+| Feature | Inspired By | Savings | Description |
+|:--------|:------------|:--------|:------------|
+| **Auto-Fallback** | 9Router 3-Tier Fallback | Prevents downtime | Automatic demotion to cheaper tier on 429/5xx errors |
+| **Token Compression** | RTK Token Saver | ~20-40% input tokens | Truncates verbose user messages (>2000 chars) for lightweight tasks |
+| **Terse Mode** | Caveman Mode | ~30-65% output tokens | Injects "be concise" system prompt for lightweight tasks |
+
+### Configuration
+
+| Variable | Default | Description |
+|:---------|:--------|:------------|
+| `LLM_TIER1_MODEL` | `anthropic/claude-sonnet-4` | Premium model for critical tasks |
+| `LLM_TIER2_MODEL` | `meta-llama/llama-3.1-8b-instruct:free` | Standard model for general tasks |
+| `LLM_TIER3_MODEL` | `google/gemma-2-9b-it:free` | Cheap/free model for simple tasks |
+| `LLM_ROUTER_ENABLED` | `true` | Enable/disable routing (fallback to direct chat) |
+| `LLM_TERSE_MODE` | `true` | Enable/disable terse mode injection |
+
+---
+
 ## Advanced Memory System
 
 Inspired by [agentmemory](https://github.com/rohitg00/agentmemory), Only-5 uses a 4-tier memory consolidation system that mimics human memory processing:
@@ -381,7 +459,7 @@ Strategy → MCP Layer → [Permission Check] → [Rate Limit] → [Sanitize] �
 ## Testing
 
 ```bash
-npm test                              # All 353 tests
+npm test                              # All 374 tests
 npx vitest run tests/core/risk.test.ts    # Specific file
 npx vitest run --coverage             # Coverage report
 ```
@@ -389,6 +467,7 @@ npx vitest run --coverage             # Coverage report
 Test coverage includes:
 - Core modules (memory, scheduler, wallet, risk, learning, strategy-priority, fallback)
 - Advanced memory system (4-tier storage, hybrid search, lifecycle, knowledge graph, consolidation, privacy)
+- LLM Router (task classification, tier selection, fallback, compression, terse mode)
 - Strategy evaluation and execution
 - MCP execution layer (permissions, rate limiting, sanitization)
 - Telegram command handlers
@@ -405,6 +484,7 @@ Only-5 draws architectural inspiration from:
 - **[MiroFish](https://github.com/666ghj/MiroFish)** — Multi-agent decision making, prediction capabilities
 - **[Dark-Moon](https://github.com/ASCIT31/Dark-Moon)** — MCP execution gatekeeper, security scanning, sub-agent orchestration
 - **[agentmemory](https://github.com/rohitg00/agentmemory)** — 4-tier memory consolidation, hybrid search (BM25 + Vector + RRF), Ebbinghaus decay, knowledge graph
+- **[9Router](https://github.com/decolua/9router)** — Smart LLM routing, 3-tier model fallback, RTK token compression, Caveman terse mode
 
 ---
 
