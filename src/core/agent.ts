@@ -8,14 +8,14 @@ import { RiskManager, type RiskLimits, type TradeCheck } from "./risk.js";
 import { LearningSystem } from "./learning.js";
 import { StrategyPriorityManager } from "./strategy-priority.js";
 import { FallbackSystem } from "./fallback.js";
-import { chat } from "../integrations/openrouter.js";
+import { routedChat } from "./llm-router.js";
 import type {
   AgentState,
   Strategy,
   StrategyResult,
   LLMMessage,
 } from "../types/index.js";
-import { PriorityTier } from "../types/index.js";
+import { PriorityTier, TaskComplexity } from "../types/index.js";
 
 const logger = createLogger("agent");
 
@@ -47,7 +47,7 @@ export class AgentController extends EventEmitter {
   constructor(options?: AgentOptions) {
     super();
     this.options = options ?? {};
-    this.memory = new MemorySystem(undefined, chat);
+    this.memory = new MemorySystem(undefined, routedChat);
     this.wallet = new WalletManager(this.memory);
     this.scheduler = new Scheduler();
   }
@@ -118,7 +118,7 @@ export class AgentController extends EventEmitter {
 
     // Initialize learning system
     this.learningSystem = new LearningSystem({
-      llm: chat,
+      llm: routedChat,
       memory: this.memory,
     });
 
@@ -379,7 +379,7 @@ export class AgentController extends EventEmitter {
         ];
 
         try {
-          const llmResponse = await chat(messages, { temperature: 0.3 });
+          const llmResponse = await routedChat(messages, { temperature: 0.3, taskComplexity: TaskComplexity.STANDARD });
           const index = parseInt(llmResponse.content.trim(), 10);
           if (!isNaN(index) && index >= 0 && index < opportunities.length) {
             selected = opportunities[index];

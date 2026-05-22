@@ -1,7 +1,7 @@
 import { createLogger } from "../core/logger.js";
 import type { MemorySystem } from "../core/memory.js";
 import type { WalletManager } from "../core/wallet.js";
-import { chat } from "../integrations/openrouter.js";
+import { routedChat } from "../core/llm-router.js";
 import { BaseStrategy, type StrategyDependencies } from "./base.js";
 import { OnchainStrategy } from "./onchain.js";
 import { AirdropStrategy } from "./airdrop.js";
@@ -21,7 +21,7 @@ export { SecurityBountyStrategy } from "./security-bounty.js";
 export { SecurityServiceStrategy } from "./security-service.js";
 
 export interface StrategyFactoryDeps {
-  llm?: typeof chat;
+  llm?: StrategyDependencies["llm"];
   memory: MemorySystem;
   wallet: WalletManager;
   logger?: ReturnType<typeof createLogger>;
@@ -31,7 +31,7 @@ export function createStrategies(
   deps: StrategyFactoryDeps
 ): Map<string, BaseStrategy> {
   const baseDeps: StrategyDependencies = {
-    llm: deps.llm ?? chat,
+    llm: deps.llm ?? routedChat,
     memory: deps.memory,
     wallet: deps.wallet,
     logger: deps.logger ?? createLogger("strategies"),
