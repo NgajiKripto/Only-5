@@ -1,4 +1,5 @@
 export { chat, OpenRouterError } from "./openrouter.js";
+export { routedChat, classifyTask, compressContext, injectTersePrompt } from "../core/llm-router.js";
 export {
   createConnection,
   getTokenAccountsByOwner,

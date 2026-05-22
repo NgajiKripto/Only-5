@@ -122,3 +122,31 @@ export interface FallbackState {
   enteredAt: number;
   lastRevenueAt: number | null;
 }
+
+export enum TaskComplexity {
+  CRITICAL = "CRITICAL",     // Risk analysis, pattern extraction, strategy ranking
+  STANDARD = "STANDARD",     // Opportunity evaluation, learning cycle analysis
+  LIGHTWEIGHT = "LIGHTWEIGHT" // Simple formatting, classification, yes/no decisions
+}
+
+export enum ModelTier {
+  TIER_1 = "TIER_1", // Expensive/premium
+  TIER_2 = "TIER_2", // Standard/default  
+  TIER_3 = "TIER_3"  // Cheap/free
+}
+
+export interface RouterOptions {
+  taskComplexity?: TaskComplexity;
+  enableCompression?: boolean;
+  terseMode?: boolean;
+  model?: string;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+export interface RouterStats {
+  totalRequests: number;
+  requestsByTier: Record<ModelTier, number>;
+  fallbackCount: number;
+  tokensSaved: number;
+}

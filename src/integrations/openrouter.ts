@@ -13,6 +13,7 @@ interface ChatOptions {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  taskComplexity?: string;
 }
 
 class RateLimiter {

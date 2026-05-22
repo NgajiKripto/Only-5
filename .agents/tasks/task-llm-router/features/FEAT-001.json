@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Implement the LLM Router system: create src/core/llm-router.ts with task classification, tiered model selection, auto-fallback, token compression, and terse mode. Update config.ts with router environment variables. Update types/index.ts with router types. Update integrations/index.ts to export the router.",
+  "status": "in_progress",
+  "steps": [
+    "1. Add router-related types to src/types/index.ts: TaskComplexity enum (CRITICAL, STANDARD, LIGHTWEIGHT), ModelTier enum (TIER_1, TIER_2, TIER_3), RouterConfig interface, RouterOptions interface (extends existing ChatOptions with taskComplexity, enableCompression, terseMode fields)",
+    "2. Update src/config.ts to add new optional environment variables with zod validation: LLM_TIER1_MODEL (default: 'anthropic/claude-sonnet-4'), LLM_TIER2_MODEL (default: 'meta-llama/llama-3.1-8b-instruct:free'), LLM_TIER3_MODEL (default: 'google/gemma-2-9b-it:free'), LLM_ROUTER_ENABLED (default: 'true'), LLM_TERSE_MODE (default: 'true')",
+    "3. Create src/core/llm-router.ts with: (a) classifyTask() function that determines TaskComplexity from keywords/patterns in messages, (b) selectModel() function that maps TaskComplexity to model tier from config, (c) compressContext() function that truncates/summarizes verbose content (inspired by RTK token saver), (d) injectTersePrompt() function that prepends a 'be concise' system message for LIGHTWEIGHT tasks, (e) routedChat() main function that wraps the existing chat() with routing logic - same return type LLMResponse, (f) auto-fallback: if a tier fails with rate limit or error, try the next tier down, (g) Export a createRouter() factory and a default routedChat() function",
+    "4. Update src/integrations/index.ts to export routedChat and createRouter from ../core/llm-router.js",
+    "5. Update src/integrations/openrouter.ts ChatOptions interface to add an optional taskComplexity field (TaskComplexity | undefined) for backward compatibility - this allows callers who import chat() directly to pass complexity hints"
+  ],
+  "acceptance_criteria": [
+    "src/core/llm-router.ts exists and exports routedChat() with the same signature as chat() plus optional RouterOptions",
+    "routedChat() is backward-compatible: calling it with just messages and basic ChatOptions works identically to chat()",
+    "TaskComplexity enum has CRITICAL, STANDARD, LIGHTWEIGHT values",
+    "Config adds LLM_TIER1_MODEL, LLM_TIER2_MODEL, LLM_TIER3_MODEL, LLM_ROUTER_ENABLED, LLM_TERSE_MODE env vars with defaults",
+    "Auto-fallback logic catches errors from higher tiers and retries with lower tier models",
+    "Token compression function reduces message content length for verbose inputs",
+    "Terse mode injects concise-response system prompt for LIGHTWEIGHT tasks",
+    "All imports use .js extension following ESM pattern",
+    "No breaking changes to existing chat() export or its callers"
+  ],
+  "verification": [
+    "Review the created/modified files for TypeScript correctness and ESM compliance",
+    "Verify backward compatibility: existing code that calls chat() without router options still compiles",
+    "Check that new config fields have sensible defaults and won't break startup without them being set"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
