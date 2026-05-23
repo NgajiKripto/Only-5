@@ -152,3 +152,12 @@ export type { ComponentHealth, HealthSnapshot } from "../core/health-monitor.js"
 
 // Connectivity Monitor types
 export type { ConnectivityEndpoint, ConnectivityStatus } from "../core/connectivity.js";
+
+// Prompt Guard types
+export type { PromptInjectionVerdict, PromptInjectionReason, PromptGuardResult } from "../core/prompt-guard.js";
+
+// Context Manager types
+export type { ContextSection, ContextBudget } from "../core/context-manager.js";
+
+// Scheduler Gate types
+export type { GateCondition, SchedulerGateConfig } from "../core/scheduler-gate.js";

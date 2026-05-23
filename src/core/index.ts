@@ -38,3 +38,16 @@ export { HealthMonitor } from "./health-monitor.js";
 export type { ComponentHealth, HealthSnapshot } from "./health-monitor.js";
 export { ConnectivityMonitor } from "./connectivity.js";
 export type { ConnectivityEndpoint, ConnectivityStatus, ConnectivityConfig } from "./connectivity.js";
+export { PromptGuard } from "./prompt-guard.js";
+export type { PromptInjectionVerdict, PromptInjectionReason, PromptGuardResult } from "./prompt-guard.js";
+export { ContextManager } from "./context-manager.js";
+export type { ContextSection, ContextBudget } from "./context-manager.js";
+export {
+  SchedulerGate,
+  connectivityGate,
+  healthGate,
+  balanceGate,
+  timeWindowGate,
+  cooldownGate,
+} from "./scheduler-gate.js";
+export type { GateCondition, SchedulerGateConfig } from "./scheduler-gate.js";
