@@ -1,0 +1,31 @@
+{
+  "project_type": "TypeScript Node.js autonomous agent for Solana blockchain revenue generation",
+  "language": "TypeScript (ES2024 target, NodeNext module resolution)",
+  "build_system": "npm + tsc. No Makefile. `npm run build` compiles to dist/. All imports use .js extension (ESM).",
+  "test_framework": "Vitest with inline describe/it/expect. Tests use tmp SQLite databases via os.tmpdir(). Mocks via vi.mock(). 353 existing tests.",
+  "build_command": "npm run build",
+  "test_command": "npm test",
+  "verification_instructions": "1. npm install, 2. npm run build (must succeed with 0 errors), 3. npm test (all tests must pass)",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "npm install in /projects/sandbox/Only-5",
+  "environment_constraints": "Node.js v22 available (project requires 24+ but v22 works for build/test). No Docker daemon. Network allows npm install (COMMON_DEPENDENCIES mode assumed based on npm availability).",
+  "contribution_requirements": "ESM with .js extensions on all imports. Zod for config validation. Winston for logging via createLogger(). SQLite via better-sqlite3. All new modules export from src/core/index.ts. Tests alongside source in tests/ mirroring src/ structure.",
+  "key_patterns": "- Each module is a class with constructor dependency injection (memory, llm function, config)\n- Logger created per module: createLogger('module-name')\n- Database operations via better-sqlite3 synchronous API\n- Types defined in src/types/index.ts or module-local types.ts\n- Config via src/config.ts with zod schemas and env var defaults\n- Tests create temp SQLite DBs, mock external deps (openrouter, config)\n- Core modules exported from src/core/index.ts\n- Agent uses EventEmitter for alerts\n- Scheduler uses node-cron for periodic tasks",
+  "relevant_files": [
+    "src/core/agent.ts",
+    "src/core/llm-router.ts",
+    "src/core/mcp.ts",
+    "src/core/scheduler.ts",
+    "src/core/memory.ts",
+    "src/core/memory/advanced-memory-system.ts",
+    "src/core/memory/storage.ts",
+    "src/core/index.ts",
+    "src/config.ts",
+    "src/types/index.ts",
+    "src/integrations/openrouter.ts",
+    "src/index.ts",
+    "tests/core/llm-router.test.ts",
+    "tests/core/risk.test.ts"
+  ],
+  "directory_structure": "src/core/ - agent, memory, scheduler, risk, mcp, learning, llm-router, wallet\nsrc/strategies/ - 7 revenue strategies (base + implementations)\nsrc/integrations/ - openrouter, solana, jupiter, github, security-scanner\nsrc/telegram/ - bot, alerts, commands/\nsrc/types/ - shared type definitions\ntests/ - mirrors src/ structure"
+}

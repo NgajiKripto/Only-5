@@ -1,0 +1,7 @@
+{
+  "task_id": "task-openhuman-upgrade",
+  "task_description": "Upgrade Only-5 agent with key features adapted from the OpenHuman project: Token Compression (TokenJuice), Health/Heartbeat Monitoring, Connectivity Monitor, Prompt Injection Guard, Context Manager, Scheduler Gate (conditional scheduling), and Subconscious Processing engine. All implemented in TypeScript following existing patterns.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null
+}
