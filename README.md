@@ -10,7 +10,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-24+-339933?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Solana](https://img.shields.io/badge/Solana-Mainnet-9945FF?style=flat-square&logo=solana&logoColor=white)](https://solana.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-353%20passing-success?style=flat-square)]()
+[![Tests](https://img.shields.io/badge/Tests-489%20passing-success?style=flat-square)]()
 
 ---
 
@@ -42,6 +42,14 @@ The agent learns from every action it takes. A self-improvement loop analyzes pa
 | **Security Scanner** | Built-in vulnerability assessment for paid scanning services |
 | **Telegram Interface** | Full monitoring, control, and alert system via bot commands |
 | **Persistent Memory** | 4-tier memory system with hybrid search (BM25 + Vector + RRF fusion), knowledge graph, and automatic consolidation |
+| **Token Compression** | Multi-stage text compression pipeline reducing LLM API costs by up to 80% |
+| **LLM Model Routing** | Intelligent routing of tasks to appropriate models (reasoning, fast, vision) based on complexity |
+| **Prompt Injection Guard** | Regex-based detection with leet-speak normalization, zero-width char stripping, and scoring thresholds |
+| **Health Monitoring** | Component-level health tracking with ok/error/degraded states and auto-recovery |
+| **Connectivity Monitor** | Parallel endpoint reachability checks with status-change callbacks |
+| **Context Manager** | Priority-based LLM context assembly with character budget enforcement |
+| **Scheduler Gate** | Conditional task execution with AND/OR logic (connectivity, health, balance, time-window, cooldown) |
+| **Subconscious Engine** | Background processing for pattern analysis, market sentiment, and strategy health checks |
 
 ---
 
@@ -63,7 +71,11 @@ The agent learns from every action it takes. A self-improvement loop analyzes pa
 │             └──────────┘  └──────────┘  └──────────┘               │
 │                                                                     │
 ├─────────────────────────────────────────────────────────────────────┤
+│  Scheduler Gate: Connectivity · Health · Balance · Time · Cooldown  │
+├─────────────────────────────────────────────────────────────────────┤
 │  MCP Execution Layer: Permission · Rate Limit · Sanitize · Audit   │
+├─────────────────────────────────────────────────────────────────────┤
+│  Subconscious: Pattern Scan · Market Sentiment · Strategy Health    │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -118,6 +130,14 @@ src/
 │   ├── strategy-priority.ts  # Dynamic strategy tier prioritization
 │   ├── fallback.ts           # Revenue drought fallback mode manager
 │   ├── logger.ts             # Structured logging (Winston)
+│   ├── llm-router.ts         # Model routing (reasoning/fast/vision by task complexity)
+│   ├── token-compression.ts  # Multi-stage text compression (ANSI, whitespace, dedup, HTML→MD)
+│   ├── health-monitor.ts     # Component health registry (ok/error/degraded/starting)
+│   ├── connectivity.ts       # Endpoint reachability checks with status-change callbacks
+│   ├── prompt-guard.ts       # Prompt injection detection (leet-speak, zero-width, scoring)
+│   ├── context-manager.ts    # Priority-based LLM context assembly with budget enforcement
+│   ├── scheduler-gate.ts     # Conditional execution gates (connectivity, health, balance, time)
+│   ├── subconscious.ts       # Background processing (patterns, sentiment, health)
 │   └── memory/
 │       ├── storage.ts        # SQLite tables for 4-tier memory + knowledge graph
 │       ├── types.ts          # MemoryTier, MemoryEntry, SearchResult types
@@ -155,9 +175,11 @@ src/
 
 - **Encapsulated signing** — Private key never leaves `WalletManager`; signing is internal-only
 - **MCP gatekeeper** — All tool executions pass through permission checks, rate limiting, and input sanitization
+- **Prompt injection guard** — Multi-rule detection with leet-speak normalization, zero-width character stripping, and threshold-based scoring (review at 0.55, block at 0.70)
 - **Telegram auth** — Passphrase-based with 5-minute expiry, persisted to SQLite, revocable
 - **Input sanitization** — Shell injection pattern detection on all MCP parameters
 - **Audit trail** — Every action logged to SQLite for forensic review
+- **Privacy filter** — Private keys, API keys, bearer tokens stripped from memory storage
 
 ---
 
@@ -185,7 +207,7 @@ npm start
 
 ```bash
 npm run dev             # Run with tsx (auto-reload)
-npm test               # Run test suite (353 tests)
+npm test               # Run test suite (489 tests)
 npm run build          # TypeScript compilation
 ```
 
@@ -213,6 +235,7 @@ SOLANA_PRIVATE_KEY=         # Base58-encoded wallet private key
 | `LOG_LEVEL` | `info` | Logging verbosity |
 | `DB_PATH` | `./data/only5.db` | SQLite database path |
 | `AGENT_NAME` | `Only-5` | Display name in logs/alerts |
+| `PROMPT_GUARD_ENABLED` | `true` | Enable/disable prompt injection detection |
 
 ---
 
@@ -381,7 +404,7 @@ Strategy → MCP Layer → [Permission Check] → [Rate Limit] → [Sanitize] �
 ## Testing
 
 ```bash
-npm test                              # All 353 tests
+npm test                              # All 489 tests
 npx vitest run tests/core/risk.test.ts    # Specific file
 npx vitest run --coverage             # Coverage report
 ```
@@ -389,6 +412,13 @@ npx vitest run --coverage             # Coverage report
 Test coverage includes:
 - Core modules (memory, scheduler, wallet, risk, learning, strategy-priority, fallback)
 - Advanced memory system (4-tier storage, hybrid search, lifecycle, knowledge graph, consolidation, privacy)
+- Token compression (multi-stage pipeline, compression ratios)
+- Health monitoring and connectivity checks
+- Prompt injection detection (leet-speak, zero-width chars, scoring thresholds)
+- Context manager (budget enforcement, priority sorting)
+- Scheduler gate (condition evaluation, AND/OR logic)
+- Subconscious engine (task scheduling, escalation buffer)
+- LLM router (model selection by task complexity)
 - Strategy evaluation and execution
 - MCP execution layer (permissions, rate limiting, sanitization)
 - Telegram command handlers
@@ -396,10 +426,89 @@ Test coverage includes:
 
 ---
 
+## OpenHuman-Inspired Intelligence Layer
+
+Adapted from the [OpenHuman](https://github.com/tinyhumansai/openhuman) project, Only-5 incorporates several advanced agent intelligence systems:
+
+### Token Compression (TokenJuice)
+
+A multi-stage compression pipeline that reduces LLM API costs significantly:
+
+```
+Raw Input → Strip ANSI → Collapse Whitespace → Deduplicate Lines → Shorten URLs → HTML→Markdown → Head-Tail → Budget Enforcement
+```
+
+- Strips ANSI escape codes and zero-width characters
+- Collapses redundant whitespace and duplicate lines
+- Converts verbose HTML to compact Markdown
+- Shortens long URLs to `hostname/path...`
+- Head-tail strategy preserves beginning and end of long outputs
+- CRITICAL-priority tasks bypass compression to preserve reasoning quality
+
+### LLM Model Routing
+
+Routes tasks to appropriate models based on complexity analysis:
+
+| Complexity | Model Tier | Use Case |
+|:-----------|:-----------|:---------|
+| CRITICAL | Reasoning (e.g., Claude 3.5 Sonnet) | Strategy decisions, risk analysis |
+| HIGH | Standard (e.g., GPT-4o-mini) | Opportunity evaluation |
+| MEDIUM | Fast (e.g., GPT-3.5) | Routine checks, formatting |
+| LOW | Fast | Simple classifications |
+
+### Subconscious Engine
+
+Background processing that runs between main agent cycles:
+
+| Task | Interval | Purpose |
+|:-----|:---------|:--------|
+| Memory Pattern Scan | 30 min | LLM analysis of recent decisions for emerging patterns |
+| Market Sentiment Check | 15 min | Detect sentiment shifts and market condition changes |
+| Strategy Health Check | 20 min | Monitor failure rates and component health |
+
+Generates insights, recommended actions, and escalations (info/warning/critical) that feed back into the main agent loop.
+
+### Scheduler Gate
+
+Conditional execution system that blocks strategy evaluation when preconditions fail:
+
+```typescript
+// Built-in gate conditions:
+connectivityGate(monitor)          // At least one critical endpoint reachable
+healthGate(healthMonitor)          // No components in error/degraded state
+balanceGate(wallet, minBalance)    // Sufficient SOL balance
+timeWindowGate(startHour, endHour) // UTC time window (supports overnight)
+cooldownGate(lastExec, cooldownMs) // Minimum elapsed time since last execution
+```
+
+Supports AND logic (all conditions must pass) or OR logic (at least one must pass).
+
+### Connectivity Monitor
+
+Real-time endpoint monitoring with automatic status-change notifications:
+
+- Parallel reachability checks for Solana RPC and OpenRouter API
+- Configurable timeout per endpoint
+- Consecutive failure tracking
+- Status-change callbacks for reactive error handling
+- `isOnline()` check considers only critical endpoints
+
+### Prompt Injection Guard
+
+Protects the agent from malicious inputs in external data sources (GitHub issues, market feeds, bounty descriptions):
+
+- 5 detection rules covering role hijack, instruction override, secret exfiltration, tool abuse
+- Leet-speak normalization (0→o, 1→i, 3→e, 4→a, 5→s)
+- Zero-width character stripping
+- Cumulative scoring with thresholds: allow (<0.55), review (0.55-0.70), block (>0.70)
+
+---
+
 ## Inspiration
 
 Only-5 draws architectural inspiration from:
 
+- **[OpenHuman](https://github.com/tinyhumansai/openhuman)** — Token compression, model routing, subconscious processing, health monitoring, context management, prompt injection detection
 - **[Charon](https://github.com/yunus-0x/charon)** — Strategy-based trading, Telegram-first UX, position monitoring
 - **[Hermes Agent](https://github.com/nousresearch/hermes-agent)** — Self-improvement loop, skill memory, scheduled automations
 - **[MiroFish](https://github.com/666ghj/MiroFish)** — Multi-agent decision making, prediction capabilities
