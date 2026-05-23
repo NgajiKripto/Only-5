@@ -115,12 +115,16 @@ export class ConnectivityMonitor {
   }
 
   async checkAll(): Promise<ConnectivityStatus[]> {
-    const results: ConnectivityStatus[] = [];
-    for (const endpoint of this.endpoints) {
-      const status = await this.checkEndpoint(endpoint);
-      results.push(status);
-    }
-    return results;
+    const results = await Promise.allSettled(
+      this.endpoints.map((endpoint) => this.checkEndpoint(endpoint))
+    );
+    return results.map((result, i) => {
+      if (result.status === "fulfilled") {
+        return result.value;
+      }
+      // If a check threw unexpectedly, return the existing status
+      return this.statuses.get(this.endpoints[i].name)!;
+    });
   }
 
   isOnline(): boolean {
@@ -146,8 +150,14 @@ export class ConnectivityMonitor {
     return new Map(this.statuses);
   }
 
-  onStatusChange(callback: (endpoint: string, reachable: boolean) => void): void {
+  onStatusChange(callback: (endpoint: string, reachable: boolean) => void): () => void {
     this.callbacks.push(callback);
+    return () => {
+      const index = this.callbacks.indexOf(callback);
+      if (index !== -1) {
+        this.callbacks.splice(index, 1);
+      }
+    };
   }
 
   private notifyStatusChange(endpoint: string, reachable: boolean): void {

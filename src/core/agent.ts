@@ -11,6 +11,7 @@ import { FallbackSystem } from "./fallback.js";
 import { routedChat } from "./llm-router.js";
 import { HealthMonitor } from "./health-monitor.js";
 import { ConnectivityMonitor } from "./connectivity.js";
+import { ContextManager } from "./context-manager.js";
 import { SchedulerGate, connectivityGate, healthGate } from "./scheduler-gate.js";
 import { SubconsciousEngine } from "./subconscious.js";
 import type {
@@ -41,6 +42,7 @@ export class AgentController extends EventEmitter {
   private fallbackSystem!: FallbackSystem;
   private healthMonitor: HealthMonitor;
   private connectivityMonitor: ConnectivityMonitor;
+  private contextManager!: ContextManager;
   private schedulerGate!: SchedulerGate;
   private subconscious!: SubconsciousEngine;
   private currentEvalIntervalSeconds: number = 30;
@@ -102,6 +104,10 @@ export class AgentController extends EventEmitter {
 
   getConnectivityMonitor(): ConnectivityMonitor {
     return this.connectivityMonitor;
+  }
+
+  getContextManager(): ContextManager {
+    return this.contextManager;
   }
 
   getSubconscious(): SubconsciousEngine {
@@ -171,6 +177,11 @@ export class AgentController extends EventEmitter {
     this.fallbackSystem.checkAndUpdateMode();
     this.currentEvalIntervalSeconds =
       this.fallbackSystem.getEvaluationIntervalSeconds();
+
+    // Initialize context manager for strategy and future use
+    this.contextManager = new ContextManager({
+      memory: this.memory,
+    });
 
     // Initialize scheduler gate with connectivity and health conditions
     this.schedulerGate = new SchedulerGate({

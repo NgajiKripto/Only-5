@@ -40,6 +40,8 @@ export interface SubconsciousDeps {
 
 let taskIdCounter = 0;
 
+const MAX_ESCALATIONS = 500;
+
 function generateTaskId(): string {
   return `sub-task-${++taskIdCounter}-${Date.now()}`;
 }
@@ -100,8 +102,11 @@ export class SubconsciousEngine {
       }
     }
 
-    // Store escalations
+    // Store escalations (bounded to prevent memory leak)
     this.escalations.push(...aggregated.escalations);
+    if (this.escalations.length > MAX_ESCALATIONS) {
+      this.escalations = this.escalations.slice(-MAX_ESCALATIONS);
+    }
 
     if (aggregated.insights.length > 0) {
       logger.info("Subconscious insights", { count: aggregated.insights.length });

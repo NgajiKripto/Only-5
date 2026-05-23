@@ -22,6 +22,17 @@ interface DetectionRule {
   pattern: RegExp;
 }
 
+/**
+ * Regex-based prompt injection detection with leet-speak normalization.
+ *
+ * LIMITATION: The five regex rules below are a first detection layer only. They catch
+ * naive copy-paste jailbreaks but do not defend against paraphrased, multi-turn,
+ * encoded (base64/hex), or semantically rephrased injection attacks. More
+ * sophisticated semantic analysis (e.g., embedding similarity to known attack
+ * patterns or an LLM-based classifier) should be added as a secondary layer for
+ * agents consuming untrusted external input (GitHub issues, market data, bounty
+ * descriptions).
+ */
 const DETECTION_RULES: DetectionRule[] = [
   {
     code: "override.ignore_previous",

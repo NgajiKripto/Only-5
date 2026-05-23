@@ -151,16 +151,7 @@ export async function routedChat(
   messages: LLMMessage[],
   options: RouterOptions = {}
 ): Promise<LLMResponse> {
-  // If router disabled, pass through to chat() directly
-  if (config.LLM_ROUTER_ENABLED !== "true") {
-    return chat(messages, {
-      model: options.model,
-      temperature: options.temperature,
-      maxTokens: options.maxTokens,
-    });
-  }
-
-  // Prompt guard: check user messages for injection attempts
+  // Prompt guard: check user messages for injection attempts (runs regardless of router state)
   if (config.PROMPT_GUARD_ENABLED === "true") {
     for (const msg of messages) {
       if (msg.role !== "user") continue;
@@ -180,6 +171,15 @@ export async function routedChat(
     }
   }
 
+  // If router disabled, pass through to chat() directly
+  if (config.LLM_ROUTER_ENABLED !== "true") {
+    return chat(messages, {
+      model: options.model,
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+    });
+  }
+
   // Determine complexity
   const complexity = options.taskComplexity ?? classifyTask(messages);
   const tier = complexityToTier(complexity);
@@ -187,9 +187,10 @@ export async function routedChat(
 
   logger.debug("Routing request", { complexity, tier, model });
 
-  // Apply compression for all tasks when content exceeds 2000 chars (unless explicitly disabled)
+  // Apply compression for STANDARD and LIGHTWEIGHT tasks (unless explicitly disabled).
+  // CRITICAL tasks are exempt to preserve full context for high-stakes reasoning.
   let processedMessages = messages;
-  if (options.enableCompression !== false) {
+  if (options.enableCompression !== false && complexity !== TaskComplexity.CRITICAL) {
     processedMessages = compressContext(processedMessages);
   }
 
