@@ -143,3 +143,12 @@ export interface RouterOptions {
   temperature?: number;
   maxTokens?: number;
 }
+
+// Token Compression types
+export type { CompressOptions, CompressedResult } from "../core/token-compression.js";
+
+// Health Monitor types
+export type { ComponentHealth, HealthSnapshot } from "../core/health-monitor.js";
+
+// Connectivity Monitor types
+export type { ConnectivityEndpoint, ConnectivityStatus } from "../core/connectivity.js";

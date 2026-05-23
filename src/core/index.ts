@@ -23,3 +23,18 @@ export { MemoryLifecycle } from "./memory/lifecycle.js";
 export { KnowledgeGraph } from "./memory/knowledge-graph.js";
 export { ConsolidationPipeline } from "./memory/consolidation.js";
 export { PrivacyFilter } from "./memory/privacy.js";
+export {
+  compressForLLM,
+  stripAnsiCodes,
+  collapseWhitespace,
+  deduplicateLines,
+  headTail,
+  compressJSON,
+  compressHTMLtoMarkdown,
+  shortenURLs,
+} from "./token-compression.js";
+export type { CompressOptions, CompressedResult } from "./token-compression.js";
+export { HealthMonitor } from "./health-monitor.js";
+export type { ComponentHealth, HealthSnapshot } from "./health-monitor.js";
+export { ConnectivityMonitor } from "./connectivity.js";
+export type { ConnectivityEndpoint, ConnectivityStatus, ConnectivityConfig } from "./connectivity.js";
