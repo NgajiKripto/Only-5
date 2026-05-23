@@ -9,6 +9,10 @@ import { LearningSystem } from "./learning.js";
 import { StrategyPriorityManager } from "./strategy-priority.js";
 import { FallbackSystem } from "./fallback.js";
 import { routedChat } from "./llm-router.js";
+import { HealthMonitor } from "./health-monitor.js";
+import { ConnectivityMonitor } from "./connectivity.js";
+import { SchedulerGate, connectivityGate, healthGate } from "./scheduler-gate.js";
+import { SubconsciousEngine } from "./subconscious.js";
 import type {
   AgentState,
   Strategy,
@@ -35,6 +39,10 @@ export class AgentController extends EventEmitter {
   private learningSystem!: LearningSystem;
   private priorityManager!: StrategyPriorityManager;
   private fallbackSystem!: FallbackSystem;
+  private healthMonitor: HealthMonitor;
+  private connectivityMonitor: ConnectivityMonitor;
+  private schedulerGate!: SchedulerGate;
+  private subconscious!: SubconsciousEngine;
   private currentEvalIntervalSeconds: number = 30;
   private strategies: Map<string, Strategy> = new Map();
   private status: AgentState["status"] = "idle";
@@ -50,6 +58,14 @@ export class AgentController extends EventEmitter {
     this.memory = new MemorySystem(undefined, routedChat);
     this.wallet = new WalletManager(this.memory);
     this.scheduler = new Scheduler();
+    this.healthMonitor = new HealthMonitor();
+    this.connectivityMonitor = new ConnectivityMonitor({
+      endpoints: [
+        { name: "solana-rpc", url: config.SOLANA_RPC_URL, method: "GET", critical: true },
+        { name: "openrouter-api", url: "https://openrouter.ai/api/v1/models", method: "GET", critical: true },
+      ],
+      timeoutMs: 5000,
+    });
   }
 
   getMemory(): MemorySystem {
@@ -78,6 +94,18 @@ export class AgentController extends EventEmitter {
 
   getFallbackSystem(): FallbackSystem {
     return this.fallbackSystem;
+  }
+
+  getHealthMonitor(): HealthMonitor {
+    return this.healthMonitor;
+  }
+
+  getConnectivityMonitor(): ConnectivityMonitor {
+    return this.connectivityMonitor;
+  }
+
+  getSubconscious(): SubconsciousEngine {
+    return this.subconscious;
   }
 
   registerStrategy(strategy: Strategy): void {
@@ -144,6 +172,34 @@ export class AgentController extends EventEmitter {
     this.currentEvalIntervalSeconds =
       this.fallbackSystem.getEvaluationIntervalSeconds();
 
+    // Initialize scheduler gate with connectivity and health conditions
+    this.schedulerGate = new SchedulerGate({
+      conditions: [
+        connectivityGate(this.connectivityMonitor),
+        healthGate(this.healthMonitor),
+      ],
+    });
+
+    // Initialize subconscious engine
+    this.subconscious = new SubconsciousEngine({
+      memory: this.memory,
+      llm: routedChat,
+      healthMonitor: this.healthMonitor,
+    });
+
+    // Listen for connectivity changes
+    this.connectivityMonitor.onStatusChange((endpoint, reachable) => {
+      if (!reachable) {
+        this.emit("alert", {
+          type: "connectivity_lost",
+          message: `Connectivity lost: ${endpoint}`,
+        });
+        logger.warn(`Connectivity lost to ${endpoint}`);
+      } else {
+        logger.info(`Connectivity restored to ${endpoint}`);
+      }
+    });
+
     // Register the main evaluation loop (dynamic interval)
     this.scheduler.registerTask(
       "evaluate-strategies",
@@ -192,6 +248,25 @@ export class AgentController extends EventEmitter {
       this.checkHealth();
     });
 
+    // Connectivity check every 2 minutes
+    this.scheduler.registerTask("connectivity-check", "*/2 * * * *", async () => {
+      await this.connectivityMonitor.checkAll();
+    });
+
+    // Subconscious tick every 5 minutes
+    this.scheduler.registerTask("subconscious-tick", "*/5 * * * *", async () => {
+      const result = await this.subconscious.tick();
+      for (const escalation of result.escalations) {
+        if (escalation.level === "critical") {
+          this.emit("alert", {
+            type: "critical_escalation",
+            message: escalation.message,
+            source: escalation.source,
+          });
+        }
+      }
+    });
+
     // Priority recalculation every 30 minutes
     this.scheduler.registerTask("priority-recalculation", "*/30 * * * *", () => {
       const strategyNames = Array.from(this.strategies.keys());
@@ -236,6 +311,8 @@ export class AgentController extends EventEmitter {
 
     this.scheduler.startAll();
     this.lastSuccessfulCycle = Date.now();
+    this.healthMonitor.markOk("agent");
+    this.healthMonitor.markOk("scheduler");
     this.emit("started");
     logger.info(`${config.AGENT_NAME} started successfully`);
   }
@@ -269,6 +346,17 @@ export class AgentController extends EventEmitter {
 
   async evaluateStrategies(): Promise<void> {
     if (!this.running) return;
+
+    // Check scheduler gate before proceeding
+    if (this.schedulerGate) {
+      const gateResult = await this.schedulerGate.canProceed();
+      if (!gateResult.allowed) {
+        logger.warn("Strategy evaluation blocked by gate", {
+          failedConditions: gateResult.failedConditions,
+        });
+        return;
+      }
+    }
 
     this.status = "evaluating";
     this.lastSuccessfulCycle = Date.now();
@@ -480,6 +568,7 @@ export class AgentController extends EventEmitter {
       });
     } catch (error) {
       this.status = "error";
+      this.healthMonitor.markError("agent", (error as Error).message);
       // Track the failure for priority system
       if (selected) {
         this.priorityManager.recordFailure(selected.strategy.name);
@@ -535,10 +624,13 @@ export class AgentController extends EventEmitter {
     const timeSinceLastCycle = Date.now() - this.lastSuccessfulCycle;
     if (timeSinceLastCycle > HEALTH_CHECK_TIMEOUT_MS && this.running) {
       logger.error("Agent appears stuck - no successful cycle in 10 minutes");
+      this.healthMonitor.markError("agent", "No successful cycle in 10 minutes");
       this.emit("alert", {
         type: "error",
         message: `Agent health warning: no successful cycle in ${Math.floor(timeSinceLastCycle / 60000)} minutes`,
       });
+    } else if (this.running) {
+      this.healthMonitor.markOk("agent");
     }
   }
 

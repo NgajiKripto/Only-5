@@ -8,54 +8,6 @@ const logger = createLogger("main");
 
 const VERSION = "0.1.0";
 
-async function checkConnectivity(): Promise<void> {
-  // Check OpenRouter connectivity
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    const response = await fetch("https://openrouter.ai/api/v1/models", {
-      signal: controller.signal,
-      headers: { Authorization: `Bearer ${config.OPENROUTER_API_KEY}` },
-    });
-    clearTimeout(timeout);
-    if (!response.ok) {
-      logger.warn(`OpenRouter API responded with status ${response.status}`);
-    } else {
-      logger.info("OpenRouter API: reachable");
-    }
-  } catch (error) {
-    logger.warn("OpenRouter API: unreachable", {
-      error: (error as Error).message,
-    });
-  }
-
-  // Check Solana RPC connectivity
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    const response = await fetch(config.SOLANA_RPC_URL, {
-      method: "POST",
-      signal: controller.signal,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "getHealth",
-      }),
-    });
-    clearTimeout(timeout);
-    if (response.ok) {
-      logger.info("Solana RPC: reachable");
-    } else {
-      logger.warn(`Solana RPC responded with status ${response.status}`);
-    }
-  } catch (error) {
-    logger.warn("Solana RPC: unreachable", {
-      error: (error as Error).message,
-    });
-  }
-}
-
 function printBanner(): void {
   const walletAddress = config.SOLANA_PRIVATE_KEY
     ? "****" + config.SOLANA_PRIVATE_KEY.slice(-8)
@@ -73,9 +25,6 @@ function printBanner(): void {
 
 async function main(): Promise<void> {
   printBanner();
-
-  // Check API connectivity
-  await checkConnectivity();
 
   const agent = new AgentController();
 
@@ -131,6 +80,17 @@ async function main(): Promise<void> {
 
   // Start agent
   await agent.start();
+
+  // Perform initial connectivity check via the monitor
+  const connectivityMonitor = agent.getConnectivityMonitor();
+  const connectivityResults = await connectivityMonitor.checkAll();
+  for (const status of connectivityResults) {
+    if (status.reachable) {
+      logger.info(`${status.endpoint}: reachable`);
+    } else {
+      logger.warn(`${status.endpoint}: unreachable`);
+    }
+  }
 
   // Start Telegram bot
   await bot.start();

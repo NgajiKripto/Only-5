@@ -125,11 +125,19 @@ export class ConnectivityMonitor {
 
   isOnline(): boolean {
     const criticalEndpoints = this.endpoints.filter((e) => e.critical !== false);
+    let anyChecked = false;
     for (const ep of criticalEndpoints) {
       const status = this.statuses.get(ep.name);
-      if (status && status.reachable) {
-        return true;
+      if (status && status.lastChecked > 0) {
+        anyChecked = true;
+        if (status.reachable) {
+          return true;
+        }
       }
+    }
+    // If no critical endpoint has been checked yet, assume online
+    if (!anyChecked) {
+      return true;
     }
     return false;
   }

@@ -51,3 +51,5 @@ export {
   cooldownGate,
 } from "./scheduler-gate.js";
 export type { GateCondition, SchedulerGateConfig } from "./scheduler-gate.js";
+export { SubconsciousEngine } from "./subconscious.js";
+export type { Escalation, SubconsciousResult, SubconsciousTask, SubconsciousDeps } from "./subconscious.js";

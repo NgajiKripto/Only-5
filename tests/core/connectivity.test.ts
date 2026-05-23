@@ -143,8 +143,8 @@ describe("ConnectivityMonitor", () => {
       vi.unstubAllGlobals();
     });
 
-    it("should return false before any checks are run", () => {
-      expect(monitor.isOnline()).toBe(false);
+    it("should return true before any checks are run (assumes online)", () => {
+      expect(monitor.isOnline()).toBe(true);
     });
   });
 

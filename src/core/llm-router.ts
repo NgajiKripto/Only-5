@@ -1,10 +1,21 @@
 import { config } from "../config.js";
 import { createLogger } from "./logger.js";
 import { chat, OpenRouterError } from "../integrations/openrouter.js";
+import { compressForLLM } from "./token-compression.js";
+import { PromptGuard } from "./prompt-guard.js";
 import type { LLMMessage, LLMResponse, RouterOptions } from "../types/index.js";
 import { TaskComplexity, ModelTier } from "../types/index.js";
 
 const logger = createLogger("llm-router");
+
+const promptGuard = new PromptGuard();
+
+export class PromptInjectionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PromptInjectionError";
+  }
+}
 
 // Constants for terse mode prompt
 const TERSE_SYSTEM_PROMPT = "Respond as concisely as possible. Use short sentences. No filler words. No unnecessary explanations. Just the essential answer.";
@@ -85,8 +96,8 @@ export function getFallbackTier(tier: ModelTier): ModelTier | null {
 }
 
 /**
- * Compresses verbose user messages by truncating content > 2000 chars.
- * Keeps first 500 + last 500 chars with "[...compressed...]" in between.
+ * Compresses verbose user messages using the token compression engine.
+ * Applies compressForLLM to user messages with content > 2000 chars.
  * Only compresses user messages.
  */
 export function compressContext(messages: LLMMessage[]): LLMMessage[] {
@@ -94,11 +105,17 @@ export function compressContext(messages: LLMMessage[]): LLMMessage[] {
     if (msg.role !== "user" || msg.content.length <= 2000) {
       return msg;
     }
-    const first = msg.content.slice(0, 500);
-    const last = msg.content.slice(-500);
+    const result = compressForLLM(msg.content, { maxChars: 2000 });
+    if (result.stats.ratio < 0.5) {
+      logger.info("Heavy compression applied", {
+        rawChars: result.stats.rawChars,
+        reducedChars: result.stats.reducedChars,
+        ratio: result.stats.ratio.toFixed(3),
+      });
+    }
     return {
       ...msg,
-      content: `${first}[...compressed...]${last}`,
+      content: result.text,
     };
   });
 }
@@ -143,6 +160,26 @@ export async function routedChat(
     });
   }
 
+  // Prompt guard: check user messages for injection attempts
+  if (config.PROMPT_GUARD_ENABLED === "true") {
+    for (const msg of messages) {
+      if (msg.role !== "user") continue;
+      const guardResult = promptGuard.check(msg.content, "llm-router");
+      if (guardResult.verdict === "block") {
+        const reasons = guardResult.reasons.map((r) => r.message).join("; ");
+        throw new PromptInjectionError(
+          `Prompt injection blocked (score: ${guardResult.score.toFixed(2)}): ${reasons}`
+        );
+      }
+      if (guardResult.verdict === "review") {
+        logger.warn("Prompt guard review flag - proceeding with caution", {
+          score: guardResult.score,
+          reasons: guardResult.reasons.map((r) => r.code),
+        });
+      }
+    }
+  }
+
   // Determine complexity
   const complexity = options.taskComplexity ?? classifyTask(messages);
   const tier = complexityToTier(complexity);
@@ -150,10 +187,9 @@ export async function routedChat(
 
   logger.debug("Routing request", { complexity, tier, model });
 
-  // Apply compression for LIGHTWEIGHT tasks only (unless explicitly disabled).
-  // STANDARD tasks get full context to preserve analysis quality.
+  // Apply compression for all tasks when content exceeds 2000 chars (unless explicitly disabled)
   let processedMessages = messages;
-  if (options.enableCompression !== false && complexity === TaskComplexity.LIGHTWEIGHT) {
+  if (options.enableCompression !== false) {
     processedMessages = compressContext(processedMessages);
   }
 

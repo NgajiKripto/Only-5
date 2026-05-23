@@ -30,6 +30,7 @@ const configSchema = z.object({
   LLM_TIER3_MODEL: z.string().default("google/gemma-2-9b-it:free"),
   LLM_ROUTER_ENABLED: z.string().default("true"),
   LLM_TERSE_MODE: z.string().default("true"),
+  PROMPT_GUARD_ENABLED: z.string().default("true"),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -56,6 +57,7 @@ export const config: Config = configSchema.parse({
   LLM_TIER3_MODEL: process.env.LLM_TIER3_MODEL || undefined,
   LLM_ROUTER_ENABLED: process.env.LLM_ROUTER_ENABLED || undefined,
   LLM_TERSE_MODE: process.env.LLM_TERSE_MODE || undefined,
+  PROMPT_GUARD_ENABLED: process.env.PROMPT_GUARD_ENABLED || undefined,
 });
 
 // If no owner chat ID and no passphrase configured, use the generated default
