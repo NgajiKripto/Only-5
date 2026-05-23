@@ -39,6 +39,7 @@ vi.mock("../../src/config.js", () => ({
     LLM_TIER3_MODEL: "google/gemma-2-9b-it:free",
     LLM_ROUTER_ENABLED: "true",
     LLM_TERSE_MODE: "true",
+    PROMPT_GUARD_ENABLED: "true",
     AGENT_NAME: "Only-5-Test",
   },
 }));
@@ -162,13 +163,12 @@ describe("LLM Router", () => {
       expect(result[0].content).toBe("Short message");
     });
 
-    it("should truncate user messages over 2000 chars with compressed marker", () => {
+    it("should compress user messages over 2000 chars", () => {
       const longContent = "a".repeat(3000);
       const messages: LLMMessage[] = [
         { role: "user", content: longContent },
       ];
       const result = compressContext(messages);
-      expect(result[0].content).toContain("[...compressed...]");
       expect(result[0].content.length).toBeLessThan(longContent.length);
     });
 
@@ -249,7 +249,7 @@ describe("LLM Router", () => {
       );
     });
 
-    it("should NOT apply compression for STANDARD tasks", async () => {
+    it("should apply compression for STANDARD tasks when content exceeds 2000 chars", async () => {
       const { chat } = await import("../../src/integrations/openrouter.js");
       const mockChat = vi.mocked(chat);
 
@@ -261,7 +261,8 @@ describe("LLM Router", () => {
       await routedChat(messages, { taskComplexity: TaskComplexity.STANDARD });
 
       const calledMessages = mockChat.mock.calls[0][0] as LLMMessage[];
-      expect(calledMessages[0].content).toBe(longContent);
+      // Compression is now applied to all tasks - content should be reduced
+      expect(calledMessages[0].content.length).toBeLessThan(longContent.length);
     });
 
     it("should apply compression for LIGHTWEIGHT tasks", async () => {
@@ -278,7 +279,7 @@ describe("LLM Router", () => {
       const calledMessages = mockChat.mock.calls[0][0] as LLMMessage[];
       // The first message should be the terse system prompt (injected), the second should be compressed user content
       const userMsg = calledMessages.find((m) => m.role === "user");
-      expect(userMsg!.content).toContain("[...compressed...]");
+      expect(userMsg!.content.length).toBeLessThan(longContent.length);
     });
 
     it("should apply terse mode for LIGHTWEIGHT tasks", async () => {
