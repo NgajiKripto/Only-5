@@ -14,6 +14,9 @@ import { ConnectivityMonitor } from "./connectivity.js";
 import { ContextManager } from "./context-manager.js";
 import { SchedulerGate, connectivityGate, healthGate } from "./scheduler-gate.js";
 import { SubconsciousEngine } from "./subconscious.js";
+import { StreamManager, TypedStreamEmitter } from "./streaming/index.js";
+import { WorkflowRegistry } from "./workflow/index.js";
+import { SubAgentOrchestrator, AgentRegistry, SecurityAgent, DeFiAgent, BountyAgent, MarketAgent } from "./orchestrator/index.js";
 import type {
   AgentState,
   Strategy,
@@ -53,6 +56,9 @@ export class AgentController extends EventEmitter {
   private lastSuccessfulCycle: number = 0;
   private running: boolean = false;
   private options: AgentOptions;
+  private streamManager: StreamManager | undefined;
+  private orchestrator: SubAgentOrchestrator | undefined;
+  private workflowRegistry: WorkflowRegistry | undefined;
 
   constructor(options?: AgentOptions) {
     super();
@@ -112,6 +118,18 @@ export class AgentController extends EventEmitter {
 
   getSubconscious(): SubconsciousEngine {
     return this.subconscious;
+  }
+
+  getStreamManager(): StreamManager | undefined {
+    return this.streamManager;
+  }
+
+  getOrchestrator(): SubAgentOrchestrator | undefined {
+    return this.orchestrator;
+  }
+
+  getWorkflowRegistry(): WorkflowRegistry | undefined {
+    return this.workflowRegistry;
   }
 
   registerStrategy(strategy: Strategy): void {
@@ -197,6 +215,21 @@ export class AgentController extends EventEmitter {
       llm: routedChat,
       healthMonitor: this.healthMonitor,
     });
+
+    // Initialize streaming system
+    const streamEmitter = new TypedStreamEmitter();
+    this.streamManager = new StreamManager(logger, streamEmitter);
+
+    // Initialize workflow registry
+    this.workflowRegistry = new WorkflowRegistry(logger);
+
+    // Initialize orchestrator with agent registry
+    const agentRegistry = new AgentRegistry(logger);
+    agentRegistry.register(new SecurityAgent(logger));
+    agentRegistry.register(new DeFiAgent(logger));
+    agentRegistry.register(new BountyAgent(logger));
+    agentRegistry.register(new MarketAgent(logger));
+    this.orchestrator = new SubAgentOrchestrator(logger, agentRegistry);
 
     // Listen for connectivity changes
     this.connectivityMonitor.onStatusChange((endpoint, reachable) => {

@@ -1,5 +1,6 @@
 import { createLogger } from "./logger.js";
 import type { MemorySystem } from "./memory.js";
+import type { StreamManager } from "./streaming/index.js";
 
 const logger = createLogger("mcp");
 
@@ -22,6 +23,7 @@ export interface MCPConfig {
   defaultTimeoutMs?: number;
   maxRatePerMinute?: number;
   auditEnabled?: boolean;
+  streamManager?: StreamManager;
 }
 
 const SHELL_INJECTION_PATTERNS = /[;`|]|&&|\$\(|\$\{/;
@@ -30,8 +32,9 @@ export class MCPExecutionLayer {
   private allowedTools: Map<string, Set<string>> = new Map();
   private toolHandlers: Map<string, ToolHandler> = new Map();
   private rateLimitWindows: Map<string, number[]> = new Map();
-  private config: Required<MCPConfig>;
+  private config: Required<Pick<MCPConfig, 'defaultTimeoutMs' | 'maxRatePerMinute' | 'auditEnabled'>>;
   private memory: MemorySystem;
+  private streamManager: StreamManager | undefined;
 
   constructor(config: MCPConfig, memory: MemorySystem) {
     this.config = {
@@ -40,10 +43,15 @@ export class MCPExecutionLayer {
       auditEnabled: config.auditEnabled ?? true,
     };
     this.memory = memory;
+    this.streamManager = config.streamManager;
     logger.info("MCP Execution Layer initialized", {
       timeout: this.config.defaultTimeoutMs,
       rateLimit: this.config.maxRatePerMinute,
     });
+  }
+
+  setStreamManager(manager: StreamManager): void {
+    this.streamManager = manager;
   }
 
   registerStrategy(strategyName: string, allowedTools: string[]): void {
@@ -118,12 +126,14 @@ export class MCPExecutionLayer {
 
     // Execute with timeout
     try {
+      this.broadcastStreamEvent('command_start', { tool: action.tool, strategy: action.strategy, params: action.params });
       const result = await this.executeWithTimeout(action);
       const mcpResult: MCPResult = {
         success: true,
         data: result,
         executionTimeMs: Date.now() - startTime,
       };
+      this.broadcastStreamEvent('command_end', { tool: action.tool, strategy: action.strategy, success: true, executionTimeMs: mcpResult.executionTimeMs });
       this.audit(action, mcpResult);
       return mcpResult;
     } catch (error) {
@@ -134,6 +144,7 @@ export class MCPExecutionLayer {
         error: errorMessage,
         executionTimeMs: Date.now() - startTime,
       };
+      this.broadcastStreamEvent('command_end', { tool: action.tool, strategy: action.strategy, success: false, error: errorMessage, executionTimeMs: mcpResult.executionTimeMs });
       this.audit(action, mcpResult);
       return mcpResult;
     }
@@ -231,5 +242,13 @@ export class MCPExecutionLayer {
       strategy: action.strategy,
       success: result.success,
     });
+  }
+
+  private broadcastStreamEvent(type: 'command_start' | 'command_end', data: Record<string, unknown>): void {
+    if (!this.streamManager) return;
+    const activeStreams = this.streamManager.getActiveStreams();
+    if (activeStreams.length > 0) {
+      this.streamManager.broadcast(type, activeStreams[0].id, data);
+    }
   }
 }

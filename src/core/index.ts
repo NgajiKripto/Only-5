@@ -58,3 +58,5 @@ export { WorkflowStepSchema, WorkflowConfigSchema, WorkflowProgressSchema } from
 export type { WorkflowStep, WorkflowResult, WorkflowConfig, WorkflowProgress } from "./workflow/index.js";
 export { SubAgentOrchestrator, AgentRegistry, AgentRunner, SecurityAgent, DeFiAgent, BountyAgent, MarketAgent } from "./orchestrator/index.js";
 export type { AgentConfig, AgentTask, AgentResult, OrchestrationPlan, AgentStatus } from "./orchestrator/index.js";
+export { StreamManager, TypedStreamEmitter, formatTimestamp, formatCommandStart, formatCommandOutput, formatStreamEvent, stripAnsi, NOISE_PATTERNS } from "./streaming/index.js";
+export type { EventType, StreamEvent, StreamSession, StreamFilter } from "./streaming/index.js";

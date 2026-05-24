@@ -167,3 +167,6 @@ export type { WorkflowStep, WorkflowResult, WorkflowConfig, WorkflowProgress } f
 
 // Orchestrator types
 export type { AgentConfig, AgentTask, AgentResult, OrchestrationPlan, AgentStatus } from "../core/orchestrator/types.js";
+
+// Streaming types
+export type { EventType, StreamEvent, StreamSession, StreamFilter } from "../core/streaming/types.js";
