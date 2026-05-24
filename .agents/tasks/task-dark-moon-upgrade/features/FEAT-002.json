@@ -1,0 +1,37 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Sub-Agent Orchestration Layer - Create a typed orchestrator that manages specialized sub-agents, detects technology/target types, dispatches agents (including parallel execution), manages lifecycle, and aggregates results. Inspired by Dark-Moon's agent-based pentest architecture.",
+  "status": "completed",
+  "steps": [
+    "Create src/core/orchestrator/types.ts with interfaces: AgentConfig (name, description, capabilities: string[], triggers: string[], priority), AgentTask (id, type, target, params, createdAt), AgentResult (agentName, taskId, success, data, error, duration, findings: string[]), OrchestrationPlan (tasks: AgentTask[], selectedAgents: string[], parallel: boolean), AgentStatus (name, status: 'idle'|'running'|'error', lastRun, tasksCompleted, tasksFailed).",
+    "Create src/core/orchestrator/agent-runner.ts with class AgentRunner: abstract class similar to BaseStrategy pattern. Constructor takes logger + config (AgentConfig). Abstract method execute(task: AgentTask): Promise<AgentResult>. Concrete methods: canHandle(task) checks capabilities/triggers against task.type and task.target, getStatus() returns AgentStatus. Timeout protection via AbortController (30s default).",
+    "Create src/core/orchestrator/agent-registry.ts with class AgentRegistry: register(agent: AgentRunner), unregister(name), getAgent(name), listAgents() returns AgentConfig[], findAgentsForTask(task: AgentTask) filters by canHandle(), getAgentStatuses() returns all AgentStatus[].",
+    "Create src/core/orchestrator/orchestrator.ts with class SubAgentOrchestrator: constructor takes logger, registry (AgentRegistry). Methods: dispatch(task: AgentTask) selects agents via registry.findAgentsForTask then executes, dispatchParallel(tasks: AgentTask[]) runs multiple tasks concurrently with Promise.allSettled, planExecution(tasks) creates OrchestrationPlan detecting which agents to assign, aggregateResults(results: AgentResult[]) merges findings. Emits events for agent lifecycle (agent_started, agent_completed, agent_failed) via Node.js EventEmitter.",
+    "Create src/core/orchestrator/agents/security-agent.ts extending AgentRunner: handles security scan tasks, capabilities ['security-scan', 'vulnerability-check', 'contract-audit'], triggers on security-related task types.",
+    "Create src/core/orchestrator/agents/defi-agent.ts extending AgentRunner: handles DeFi tasks, capabilities ['token-analysis', 'liquidity-check', 'yield-farming', 'swap-routing'].",
+    "Create src/core/orchestrator/agents/bounty-agent.ts extending AgentRunner: handles bug bounty tasks, capabilities ['bounty-search', 'report-generation', 'scope-analysis'].",
+    "Create src/core/orchestrator/agents/market-agent.ts extending AgentRunner: handles market analysis, capabilities ['market-analysis', 'sentiment-analysis', 'price-tracking', 'trend-detection'].",
+    "Create src/core/orchestrator/agents/index.ts exporting all agent classes.",
+    "Create src/core/orchestrator/index.ts exporting SubAgentOrchestrator, AgentRegistry, AgentRunner, all types, and all agent implementations.",
+    "Create tests/core/orchestrator/orchestrator.test.ts: test dispatch (single agent), dispatchParallel (multiple agents concurrently), agent selection via canHandle, result aggregation, error handling for failed agents, timeout behavior.",
+    "Create tests/core/orchestrator/agent-registry.test.ts: test registration, listing, finding agents for tasks, unregistration.",
+    "Update src/core/index.ts to export SubAgentOrchestrator, AgentRegistry, AgentRunner, and orchestrator types from ./orchestrator/index.js",
+    "Update src/types/index.ts to re-export orchestrator types (AgentConfig, AgentTask, AgentResult, OrchestrationPlan, AgentStatus)."
+  ],
+  "acceptance_criteria": [
+    "AgentRegistry correctly registers agents and finds matching agents for tasks based on capabilities/triggers",
+    "SubAgentOrchestrator.dispatch() selects the right agent and returns AgentResult",
+    "SubAgentOrchestrator.dispatchParallel() runs agents concurrently and returns all results",
+    "AgentRunner timeout protection works (tasks exceeding 30s are aborted)",
+    "All four agent implementations are registered and can handle their respective task types",
+    "Running `npx tsc --noEmit` passes with no type errors",
+    "Running `npx vitest run tests/core/orchestrator/` passes all tests"
+  ],
+  "verification": [
+    "npx tsc --noEmit",
+    "npx vitest run tests/core/orchestrator/"
+  ],
+  "blocked_reason": null,
+  "findings": "All 19 orchestrator tests pass. TypeScript compilation clean. Full implementation includes types, AgentRunner abstract class with timeout protection, AgentRegistry, SubAgentOrchestrator with EventEmitter, and 4 specialized agent implementations (security, defi, bounty, market). Exports added to src/core/index.ts and src/types/index.ts."
+}
