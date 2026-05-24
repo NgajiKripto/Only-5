@@ -161,3 +161,12 @@ export type { ContextSection, ContextBudget } from "../core/context-manager.js";
 
 // Scheduler Gate types
 export type { GateCondition, SchedulerGateConfig } from "../core/scheduler-gate.js";
+
+// Workflow types
+export type { WorkflowStep, WorkflowResult, WorkflowConfig, WorkflowProgress } from "../core/workflow/types.js";
+
+// Orchestrator types
+export type { AgentConfig, AgentTask, AgentResult, OrchestrationPlan, AgentStatus } from "../core/orchestrator/types.js";
+
+// Streaming types
+export type { EventType, StreamEvent, StreamSession, StreamFilter } from "../core/streaming/types.js";
