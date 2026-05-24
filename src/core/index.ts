@@ -53,3 +53,6 @@ export {
 export type { GateCondition, SchedulerGateConfig } from "./scheduler-gate.js";
 export { SubconsciousEngine } from "./subconscious.js";
 export type { Escalation, SubconsciousResult, SubconsciousTask, SubconsciousDeps } from "./subconscious.js";
+export { BaseWorkflow, WorkflowRegistry, SecurityScanWorkflow, TokenAnalysisWorkflow, ReconWorkflow } from "./workflow/index.js";
+export { WorkflowStepSchema, WorkflowConfigSchema, WorkflowProgressSchema } from "./workflow/index.js";
+export type { WorkflowStep, WorkflowResult, WorkflowConfig, WorkflowProgress } from "./workflow/index.js";

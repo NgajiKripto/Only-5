@@ -161,3 +161,6 @@ export type { ContextSection, ContextBudget } from "../core/context-manager.js";
 
 // Scheduler Gate types
 export type { GateCondition, SchedulerGateConfig } from "../core/scheduler-gate.js";
+
+// Workflow types
+export type { WorkflowStep, WorkflowResult, WorkflowConfig, WorkflowProgress } from "../core/workflow/types.js";

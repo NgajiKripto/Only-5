@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Dynamic Workflow Registry System - Create a complete TypeScript workflow engine with auto-discovery, step-based execution, retry logic, command validation, and standardized result types. Inspired by Dark-Moon's BaseWorkflow/WorkflowRegistry pattern.",
+  "status": "in_progress",
+  "steps": [
+    "Create src/core/workflow/types.ts with TypeScript interfaces: WorkflowStep (name, tool, params, timeout, retries, parseJson), WorkflowResult (success, data, error, steps, startedAt, completedAt, duration), WorkflowConfig (name, description, steps, allowedTools, blockedPatterns), WorkflowProgress (currentStep, totalSteps, stepName, status). Use Zod schemas for validation.",
+    "Create src/core/workflow/base-workflow.ts with abstract class BaseWorkflow: constructor takes logger + config, abstract methods getSteps() and getName(). Implements executeStep(step) with timeout via AbortController, retry logic (configurable per step), createResultDict() for standardized output, validateCommand(tool, params) checking against allowedTools whitelist and blockedPatterns blocklist (reuse SHELL_INJECTION_PATTERNS from mcp.ts concept), parseOutput(raw) for auto JSON parsing. Follow the constructor injection pattern from BaseStrategy.",
+    "Create src/core/workflow/workflow-registry.ts with class WorkflowRegistry: constructor takes logger. Methods: register(workflow), listWorkflows() returns metadata array, runWorkflow(name, params) finds workflow and calls execute(params), getWorkflow(name). Auto-discovery via registerBuiltin() that registers all workflow implementations from the workflows/ subfolder.",
+    "Create src/core/workflow/workflows/security-scan.ts extending BaseWorkflow: implements a multi-step security scanning workflow with steps like 'initialize-scan', 'check-contract', 'analyze-results', 'generate-report'. Each step returns structured data. Uses the validateCommand/parseOutput helpers.",
+    "Create src/core/workflow/workflows/token-analysis.ts extending BaseWorkflow: multi-step token/DeFi analysis (fetch-token-info, check-liquidity, analyze-holders, risk-assessment).",
+    "Create src/core/workflow/workflows/recon.ts extending BaseWorkflow: reconnaissance workflow (target-discovery, endpoint-enumeration, technology-detection, vulnerability-mapping).",
+    "Create src/core/workflow/workflows/index.ts that exports all workflow classes.",
+    "Create src/core/workflow/index.ts that exports BaseWorkflow, WorkflowRegistry, all types, and all workflow implementations.",
+    "Create tests/core/workflow/workflow-registry.test.ts: test workflow registration, listing, execution, step validation, retry logic, timeout handling, blocked patterns rejection. Follow pattern from tests/core/mcp.test.ts (tmpdir isolation, describe/it blocks).",
+    "Create tests/core/workflow/base-workflow.test.ts: test executeStep with success/failure/timeout, createResultDict, validateCommand whitelist/blocklist, parseOutput JSON parsing.",
+    "Update src/core/index.ts to export WorkflowRegistry, BaseWorkflow, and workflow types from ./workflow/index.js",
+    "Update src/types/index.ts to re-export workflow types (WorkflowStep, WorkflowResult, WorkflowConfig, WorkflowProgress) from the core workflow module."
+  ],
+  "acceptance_criteria": [
+    "WorkflowRegistry can register, list, and run workflows by name",
+    "BaseWorkflow.executeStep() handles timeouts (AbortController), retries, and returns structured results",
+    "Command validation rejects blocked patterns (shell injection) and tools not in whitelist",
+    "All three workflow implementations (security-scan, token-analysis, recon) are registered and executable",
+    "Running `npx tsc --noEmit` passes with no type errors",
+    "Running `npx vitest run tests/core/workflow/` passes all tests"
+  ],
+  "verification": [
+    "npx tsc --noEmit",
+    "npx vitest run tests/core/workflow/"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
