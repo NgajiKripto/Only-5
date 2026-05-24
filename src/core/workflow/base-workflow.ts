@@ -66,8 +66,9 @@ export abstract class BaseWorkflow {
               reject(new Error(`Step "${step.name}" timed out after ${timeoutMs}ms`));
             });
 
-            // Simulate step execution - in a real system this would dispatch to a tool handler
-            Promise.resolve({ tool: step.tool, params: step.params, executed: true })
+            // Stub execution - no real tool dispatch wired yet
+            this.logger.debug(`Stub execution for step "${step.name}" (tool: ${step.tool}) - no real dispatch`);
+            Promise.resolve({ tool: step.tool, params: step.params, executed: true, dispatched: false })
               .then(resolve)
               .catch(reject);
           });

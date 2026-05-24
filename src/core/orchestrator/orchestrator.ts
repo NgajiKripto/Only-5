@@ -96,8 +96,8 @@ export class SubAgentOrchestrator extends EventEmitter {
       }
     }
 
-    // Determine if tasks can run in parallel: parallel if they use different agents
-    const parallel = selectedAgents.size >= tasks.length || tasks.length > 1;
+    // Determine if tasks can run in parallel: parallel if they use different agents (no contention)
+    const parallel = selectedAgents.size >= tasks.length;
 
     return {
       tasks,

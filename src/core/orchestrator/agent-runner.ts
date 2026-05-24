@@ -20,7 +20,9 @@ export abstract class AgentRunner {
     if (this.config.capabilities.includes(task.type)) {
       return true;
     }
-    return this.config.triggers.some((trigger) => task.target.includes(trigger));
+    return this.config.triggers.some((trigger) =>
+      new RegExp(`\\b${trigger}\\b`, "i").test(task.target)
+    );
   }
 
   getConfig(): AgentConfig {

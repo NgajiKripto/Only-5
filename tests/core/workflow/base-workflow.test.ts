@@ -73,7 +73,7 @@ describe("BaseWorkflow", () => {
 
       const result = await workflow.testExecuteStep(step);
       expect(result.success).toBe(true);
-      expect(result.output).toEqual({ tool: "test-tool", params: { action: "test" }, executed: true });
+      expect(result.output).toEqual({ tool: "test-tool", params: { action: "test" }, executed: true, dispatched: false });
       expect(result.duration).toBeGreaterThanOrEqual(0);
     });
 

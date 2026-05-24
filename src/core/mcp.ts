@@ -247,8 +247,8 @@ export class MCPExecutionLayer {
   private broadcastStreamEvent(type: 'command_start' | 'command_end', data: Record<string, unknown>): void {
     if (!this.streamManager) return;
     const activeStreams = this.streamManager.getActiveStreams();
-    if (activeStreams.length > 0) {
-      this.streamManager.broadcast(type, activeStreams[0].id, data);
+    for (const session of activeStreams) {
+      this.streamManager.broadcast(type, session.id, data);
     }
   }
 }
