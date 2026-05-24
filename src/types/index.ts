@@ -164,3 +164,6 @@ export type { GateCondition, SchedulerGateConfig } from "../core/scheduler-gate.
 
 // Workflow types
 export type { WorkflowStep, WorkflowResult, WorkflowConfig, WorkflowProgress } from "../core/workflow/types.js";
+
+// Orchestrator types
+export type { AgentConfig, AgentTask, AgentResult, OrchestrationPlan, AgentStatus } from "../core/orchestrator/types.js";
