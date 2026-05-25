@@ -47,6 +47,10 @@ export class OrchestratorClient {
     this.baseUrl = baseUrl ?? process.env.ORCHESTRATOR_SERVICE_URL ?? "http://localhost:7002";
   }
 
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
   async dispatch(
     task: Omit<AgentTask, "id" | "created_at">
   ): Promise<AgentResult> {

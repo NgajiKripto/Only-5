@@ -74,8 +74,10 @@ class HeaderScanWorkflow(BaseWorkflow):
 
         try:
             async with httpx.AsyncClient(
-                follow_redirects=True, timeout=10.0, verify=False
+                follow_redirects=True, timeout=10.0, verify=True
             ) as client:
+                # NOTE: verify=True is the secure default. To scan self-signed targets,
+                # this could be made configurable via a per-request parameter.
                 response = await client.get(target)
                 headers = dict(response.headers)
                 duration = time.time() - start_time

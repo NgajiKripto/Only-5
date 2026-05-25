@@ -55,6 +55,21 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
+	// Start background session cleanup every 5 minutes
+	cleanupDone := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				sessionMgr.Cleanup()
+			case <-cleanupDone:
+				return
+			}
+		}
+	}()
+
 	go func() {
 		fmt.Printf("Orchestrator service starting on :%s\n", port)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -64,6 +79,8 @@ func main() {
 
 	<-stop
 	fmt.Println("\nShutting down gracefully...")
+
+	close(cleanupDone)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

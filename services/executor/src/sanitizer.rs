@@ -22,10 +22,17 @@ pub fn sanitize(input: &str) -> SanitizeResult {
         changes.push("Stripped shell metacharacters".to_string());
     }
 
-    // Normalize paths - remove ../
-    if sanitized.contains("../") {
-        sanitized = sanitized.replace("../", "");
-        changes.push("Removed path traversal sequences (../)".to_string());
+    // Normalize paths - remove ../ (loop to handle nested sequences like ....// -> ../)
+    if sanitized.contains("../") || sanitized.contains("..\\") {
+        loop {
+            let before = sanitized.clone();
+            sanitized = sanitized.replace("../", "");
+            sanitized = sanitized.replace("..\\", "");
+            if sanitized == before {
+                break;
+            }
+        }
+        changes.push("Removed path traversal sequences (../ and ..\\)".to_string());
     }
 
     // Normalize paths - remove ./
@@ -72,6 +79,20 @@ mod tests {
         let result = sanitize("../../etc/passwd");
         assert_eq!(result.sanitized, "etc/passwd");
         assert!(result.changes.iter().any(|c| c.contains("../")));
+    }
+
+    #[test]
+    fn test_nested_path_traversal_bypass() {
+        // ....// after one pass of removing ../ becomes ../
+        let result = sanitize("....//etc/passwd");
+        assert_eq!(result.sanitized, "etc/passwd");
+        assert!(!result.sanitized.contains("../"));
+    }
+
+    #[test]
+    fn test_backslash_path_traversal() {
+        let result = sanitize("..\\..\\etc\\passwd");
+        assert!(!result.sanitized.contains("..\\"));
     }
 
     #[test]

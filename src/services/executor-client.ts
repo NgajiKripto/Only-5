@@ -39,6 +39,10 @@ export class ExecutorClient {
     this.baseUrl = baseUrl ?? process.env.EXECUTOR_SERVICE_URL ?? "http://localhost:7003";
   }
 
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
   async execute(
     command: string,
     args: string[],

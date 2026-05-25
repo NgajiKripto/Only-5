@@ -39,6 +39,10 @@ export class ScannerClient {
     this.baseUrl = baseUrl ?? process.env.SCANNER_SERVICE_URL ?? "http://localhost:7001";
   }
 
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
   async scan(
     target: string,
     workflow: string,

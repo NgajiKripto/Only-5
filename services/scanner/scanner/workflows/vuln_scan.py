@@ -73,8 +73,10 @@ class VulnScanWorkflow(BaseWorkflow):
         url = url.rstrip("/")
 
         exposed = []
+        # NOTE: verify=True is the secure default. To scan self-signed targets,
+        # this could be made configurable via a per-request parameter.
         async with httpx.AsyncClient(
-            follow_redirects=False, timeout=5.0, verify=False
+            follow_redirects=False, timeout=5.0, verify=True
         ) as client:
             for path, severity, description in SENSITIVE_PATHS:
                 try:
@@ -98,8 +100,10 @@ class VulnScanWorkflow(BaseWorkflow):
         url = target if target.startswith("http") else f"https://{target}"
 
         disclosure = {}
+        # NOTE: verify=True is the secure default. To scan self-signed targets,
+        # this could be made configurable via a per-request parameter.
         async with httpx.AsyncClient(
-            follow_redirects=True, timeout=5.0, verify=False
+            follow_redirects=True, timeout=5.0, verify=True
         ) as client:
             try:
                 response = await client.get(url)

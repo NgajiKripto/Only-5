@@ -52,14 +52,14 @@ export class ServiceManager {
     return [
       {
         name: "Scanner (Python)",
-        url: (this.scanner as unknown as { baseUrl: string }).baseUrl,
+        url: this.scanner.getBaseUrl(),
         healthy: scannerHealth.status === "healthy",
         error:
           scannerHealth.status !== "healthy" ? "Service unavailable" : undefined,
       },
       {
         name: "Executor (Rust)",
-        url: (this.executor as unknown as { baseUrl: string }).baseUrl,
+        url: this.executor.getBaseUrl(),
         healthy: executorHealth.status === "healthy",
         error:
           executorHealth.status !== "healthy"
@@ -68,7 +68,7 @@ export class ServiceManager {
       },
       {
         name: "Orchestrator (Go)",
-        url: (this.orchestrator as unknown as { baseUrl: string }).baseUrl,
+        url: this.orchestrator.getBaseUrl(),
         healthy: orchestratorHealth.status === "healthy",
         error:
           orchestratorHealth.status !== "healthy"
