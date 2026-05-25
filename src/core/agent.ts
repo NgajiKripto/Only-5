@@ -24,11 +24,9 @@ import type {
   LLMMessage,
 } from "../types/index.js";
 import { PriorityTier, TaskComplexity } from "../types/index.js";
+import { LOW_BALANCE_THRESHOLD_SOL, HEALTH_CHECK_TIMEOUT_MS, PRUNE_RETENTION_DAYS } from "../constants.js";
 
 const logger = createLogger("agent");
-
-const LOW_BALANCE_THRESHOLD = 0.2; // SOL
-const HEALTH_CHECK_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 export interface AgentOptions {
   riskLimits?: Partial<RiskLimits>;
@@ -158,9 +156,9 @@ export class AgentController extends EventEmitter {
     let balance = 0;
     try {
       balance = await this.wallet.getBalance();
-    } catch {
+    } catch (error) {
       balance = 5.0; // Default starting balance assumption
-      logger.warn("Could not fetch balance, using default for risk manager");
+      logger.warn("Could not fetch balance, using default for risk manager", { error: (error as Error).message ?? "unknown" });
     }
 
     this.riskManager = new RiskManager(
@@ -274,7 +272,7 @@ export class AgentController extends EventEmitter {
     // Daily database pruning at 1 AM - keep last 30 days of data
     this.scheduler.registerTask("db-prune", "0 1 * * *", () => {
       try {
-        this.memory.prune(30);
+        this.memory.prune(PRUNE_RETENTION_DAYS);
         logger.info("Database pruning completed (30 day retention)");
       } catch (error) {
         logger.error("Database pruning failed", {
@@ -657,7 +655,7 @@ export class AgentController extends EventEmitter {
       const balance = await this.wallet.getBalance();
       this.riskManager.updateBalance(balance);
 
-      if (balance < LOW_BALANCE_THRESHOLD) {
+      if (balance < LOW_BALANCE_THRESHOLD_SOL) {
         this.emit("alert", {
           type: "low_balance",
           message: `Low balance warning: ${balance.toFixed(4)} SOL`,
@@ -690,7 +688,7 @@ export class AgentController extends EventEmitter {
     try {
       balance = await this.wallet.getBalance();
     } catch {
-      // Balance check may fail if no connection
+      logger.debug("Balance check failed in getState");
     }
 
     return {

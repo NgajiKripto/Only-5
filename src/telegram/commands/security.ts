@@ -1,7 +1,6 @@
 import type { Context } from "grammy";
 import type { AgentController } from "../../core/agent.js";
-
-const MAX_SCAN_QUEUE_SIZE = 50;
+import { MAX_SCAN_QUEUE_SIZE } from "../../constants.js";
 
 export function registerSecurityCommands(
   bot: { command: (cmd: string, handler: (ctx: Context) => Promise<void>) => void },
