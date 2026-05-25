@@ -188,6 +188,30 @@ describe("MCPExecutionLayer", () => {
       const result = await mcp.execute(action);
       expect(result.success).toBe(true);
     });
+
+    it("should reject array params containing shell metacharacters", async () => {
+      const action: MCPAction = {
+        tool: "http_request",
+        params: { targets: ["https://safe.com", "https://evil.com; rm -rf /"] },
+        strategy: "test",
+      };
+
+      const result = await mcp.execute(action);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("sanitization failed");
+      expect(result.error).toContain("targets[1]");
+    });
+
+    it("should allow array params with safe strings", async () => {
+      const action: MCPAction = {
+        tool: "http_request",
+        params: { targets: ["https://safe.com", "https://also-safe.org/path"] },
+        strategy: "test",
+      };
+
+      const result = await mcp.execute(action);
+      expect(result.success).toBe(true);
+    });
   });
 
   describe("rate limiting", () => {

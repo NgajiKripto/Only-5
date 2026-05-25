@@ -1,15 +1,15 @@
+// TODO: Connection and Keypair are only used in signAndSendSwapLegacy (deprecated).
+// Remove these imports when signAndSendSwapLegacy is deleted.
 import { Connection, Keypair, VersionedTransaction } from "@solana/web3.js";
 import { createLogger } from "../core/logger.js";
 import type { WalletManager } from "../core/wallet.js";
 import { waitForConfirmation } from "./solana.js";
+import { JUPITER_MAX_RETRIES, JUPITER_BASE_BACKOFF_MS } from "../constants.js";
 
 const logger = createLogger("jupiter");
 
 const JUPITER_QUOTE_API = "https://quote-api.jup.ag/v6";
 const JUPITER_PRICE_API = "https://price.jup.ag/v6";
-
-const MAX_RETRIES = 3;
-const BASE_BACKOFF_MS = 1000;
 
 export interface JupiterQuote {
   inputMint: string;
@@ -124,11 +124,11 @@ export async function signAndSendSwap(
   const connection = wallet.getConnection();
   let lastError: Error | null = null;
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt < JUPITER_MAX_RETRIES; attempt++) {
     try {
       if (attempt > 0) {
-        const backoff = BASE_BACKOFF_MS * Math.pow(2, attempt - 1);
-        logger.info(`Retry attempt ${attempt + 1}/${MAX_RETRIES} after ${backoff}ms backoff`);
+        const backoff = JUPITER_BASE_BACKOFF_MS * Math.pow(2, attempt - 1);
+        logger.info(`Retry attempt ${attempt + 1}/${JUPITER_MAX_RETRIES} after ${backoff}ms backoff`);
         await new Promise((resolve) => setTimeout(resolve, backoff));
 
         // Fetch a fresh blockhash for retries
@@ -162,7 +162,7 @@ export async function signAndSendSwap(
         errorMessage.includes("expired") ||
         errorMessage.includes("failed to confirm");
 
-      if (!isRetryable || attempt === MAX_RETRIES - 1) {
+      if (!isRetryable || attempt === JUPITER_MAX_RETRIES - 1) {
         throw lastError;
       }
 

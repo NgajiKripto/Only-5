@@ -1,7 +1,6 @@
 import type { Context } from "grammy";
 import type { AgentController } from "../../core/agent.js";
-
-const MAX_SCAN_QUEUE_SIZE = 50;
+import { MAX_SCAN_QUEUE_SIZE } from "../../constants.js";
 
 export function registerSecurityCommands(
   bot: { command: (cmd: string, handler: (ctx: Context) => Promise<void>) => void },
@@ -19,11 +18,18 @@ export function registerSecurityCommands(
       return;
     }
 
-    // Validate URL format
+    // Validate URL format and protocol
+    let parsedUrl: URL;
     try {
-      new URL(target);
+      parsedUrl = new URL(target);
     } catch {
       await ctx.reply("Invalid URL. Please provide a valid URL starting with http:// or https://");
+      return;
+    }
+
+    // Only allow http and https protocols
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      await ctx.reply("Only HTTP and HTTPS URLs are allowed. Protocols like file://, ftp://, and javascript:// are not supported.");
       return;
     }
 

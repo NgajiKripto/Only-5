@@ -613,6 +613,69 @@ describe("Telegram Commands", () => {
       const message = ctx.reply.mock.calls[0][0] as string;
       expect(message).toContain("queue is full");
     });
+
+    it("should reject file:// protocol URLs", async () => {
+      const { registerSecurityCommands } = await import("../../src/telegram/commands/security.js");
+
+      const ctx = createMockContext();
+      ctx.message.text = "/scan file:///etc/passwd";
+      let scanHandler: ((ctx: any) => Promise<void>) | null = null;
+
+      const mockBot = {
+        command: (cmd: string, handler: (ctx: any) => Promise<void>) => {
+          if (cmd === "scan") scanHandler = handler;
+        },
+      };
+
+      registerSecurityCommands(mockBot as any, agent);
+      await scanHandler!(ctx);
+
+      expect(ctx.reply).toHaveBeenCalledTimes(1);
+      const message = ctx.reply.mock.calls[0][0] as string;
+      expect(message).toContain("Only HTTP and HTTPS URLs are allowed");
+    });
+
+    it("should reject ftp:// protocol URLs", async () => {
+      const { registerSecurityCommands } = await import("../../src/telegram/commands/security.js");
+
+      const ctx = createMockContext();
+      ctx.message.text = "/scan ftp://example.com/secret";
+      let scanHandler: ((ctx: any) => Promise<void>) | null = null;
+
+      const mockBot = {
+        command: (cmd: string, handler: (ctx: any) => Promise<void>) => {
+          if (cmd === "scan") scanHandler = handler;
+        },
+      };
+
+      registerSecurityCommands(mockBot as any, agent);
+      await scanHandler!(ctx);
+
+      expect(ctx.reply).toHaveBeenCalledTimes(1);
+      const message = ctx.reply.mock.calls[0][0] as string;
+      expect(message).toContain("Only HTTP and HTTPS URLs are allowed");
+    });
+
+    it("should reject javascript: protocol URLs", async () => {
+      const { registerSecurityCommands } = await import("../../src/telegram/commands/security.js");
+
+      const ctx = createMockContext();
+      ctx.message.text = "/scan javascript:alert(1)";
+      let scanHandler: ((ctx: any) => Promise<void>) | null = null;
+
+      const mockBot = {
+        command: (cmd: string, handler: (ctx: any) => Promise<void>) => {
+          if (cmd === "scan") scanHandler = handler;
+        },
+      };
+
+      registerSecurityCommands(mockBot as any, agent);
+      await scanHandler!(ctx);
+
+      expect(ctx.reply).toHaveBeenCalledTimes(1);
+      const message = ctx.reply.mock.calls[0][0] as string;
+      expect(message).toContain("Only HTTP and HTTPS URLs are allowed");
+    });
   });
 
   describe("/bounties command", () => {

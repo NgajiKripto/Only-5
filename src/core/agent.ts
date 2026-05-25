@@ -24,11 +24,9 @@ import type {
   LLMMessage,
 } from "../types/index.js";
 import { PriorityTier, TaskComplexity } from "../types/index.js";
+import { LOW_BALANCE_THRESHOLD_SOL, HEALTH_CHECK_TIMEOUT_MS, PRUNE_RETENTION_DAYS } from "../constants.js";
 
 const logger = createLogger("agent");
-
-const LOW_BALANCE_THRESHOLD = 0.2; // SOL
-const HEALTH_CHECK_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 export interface AgentOptions {
   riskLimits?: Partial<RiskLimits>;
@@ -49,6 +47,7 @@ export class AgentController extends EventEmitter {
   private schedulerGate!: SchedulerGate;
   private subconscious!: SubconsciousEngine;
   private currentEvalIntervalSeconds: number = 30;
+  private evaluating = false;
   private strategies: Map<string, Strategy> = new Map();
   private status: AgentState["status"] = "idle";
   private startTime: number = 0;
@@ -157,9 +156,9 @@ export class AgentController extends EventEmitter {
     let balance = 0;
     try {
       balance = await this.wallet.getBalance();
-    } catch {
+    } catch (error) {
       balance = 5.0; // Default starting balance assumption
-      logger.warn("Could not fetch balance, using default for risk manager");
+      logger.warn("Could not fetch balance, using default for risk manager", { error: (error as Error).message ?? "unknown" });
     }
 
     this.riskManager = new RiskManager(
@@ -273,7 +272,7 @@ export class AgentController extends EventEmitter {
     // Daily database pruning at 1 AM - keep last 30 days of data
     this.scheduler.registerTask("db-prune", "0 1 * * *", () => {
       try {
-        this.memory.prune(30);
+        this.memory.prune(PRUNE_RETENTION_DAYS);
         logger.info("Database pruning completed (30 day retention)");
       } catch (error) {
         logger.error("Database pruning failed", {
@@ -390,93 +389,102 @@ export class AgentController extends EventEmitter {
 
   async evaluateStrategies(): Promise<void> {
     if (!this.running) return;
-
-    // Check scheduler gate before proceeding
-    if (this.schedulerGate) {
-      const gateResult = await this.schedulerGate.canProceed();
-      if (!gateResult.allowed) {
-        logger.warn("Strategy evaluation blocked by gate", {
-          failedConditions: gateResult.failedConditions,
-        });
-        return;
-      }
+    if (this.evaluating) {
+      logger.debug("Skipping overlapping evaluation");
+      return;
     }
+    this.evaluating = true;
 
-    this.status = "evaluating";
-    this.lastSuccessfulCycle = Date.now();
-
-    const confidenceThreshold = this.fallbackSystem.getConfidenceThreshold();
-    const skipLowPriority = this.fallbackSystem.shouldSkipLowPriority();
-    const prioritizedStrategies =
-      this.priorityManager.getPrioritizedStrategies();
-
-    const opportunities: Array<{
-      strategy: Strategy;
-      result: StrategyResult;
-      priority: { tier: PriorityTier; score: number };
-    }> = [];
-
-    for (const [name, strategy] of this.strategies) {
-      if (!strategy.enabled) continue;
-
-      // Check priority tier - skip low/dormant in normal mode
-      if (skipLowPriority) {
-        const priorityRecord = prioritizedStrategies.find(
-          (p) => p.strategy === name
-        );
-        if (
-          priorityRecord &&
-          (priorityRecord.tier === PriorityTier.LOW ||
-            priorityRecord.tier === PriorityTier.DORMANT)
-        ) {
-          continue;
+    try {
+      // Check scheduler gate before proceeding
+      if (this.schedulerGate) {
+        const gateResult = await this.schedulerGate.canProceed();
+        if (!gateResult.allowed) {
+          logger.warn("Strategy evaluation blocked by gate", {
+            failedConditions: gateResult.failedConditions,
+          });
+          return;
         }
       }
 
-      try {
-        const result = await strategy.evaluate();
-        if (result && result.confidence > confidenceThreshold) {
+      this.status = "evaluating";
+      this.lastSuccessfulCycle = Date.now();
+
+      const confidenceThreshold = this.fallbackSystem.getConfidenceThreshold();
+      const skipLowPriority = this.fallbackSystem.shouldSkipLowPriority();
+      const prioritizedStrategies =
+        this.priorityManager.getPrioritizedStrategies();
+
+      const opportunities: Array<{
+        strategy: Strategy;
+        result: StrategyResult;
+        priority: { tier: PriorityTier; score: number };
+      }> = [];
+
+      for (const [name, strategy] of this.strategies) {
+        if (!strategy.enabled) continue;
+
+        // Check priority tier - skip low/dormant in normal mode
+        if (skipLowPriority) {
           const priorityRecord = prioritizedStrategies.find(
             (p) => p.strategy === name
           );
-          opportunities.push({
-            strategy,
-            result,
-            priority: {
-              tier: priorityRecord?.tier ?? PriorityTier.MEDIUM,
-              score: priorityRecord?.score ?? 0.5,
-            },
-          });
-          logger.info(`Opportunity found: ${name}`, {
-            confidence: result.confidence,
-            expectedReward: result.expectedReward,
-            tier: priorityRecord?.tier ?? "MEDIUM",
+          if (
+            priorityRecord &&
+            (priorityRecord.tier === PriorityTier.LOW ||
+              priorityRecord.tier === PriorityTier.DORMANT)
+          ) {
+            continue;
+          }
+        }
+
+        try {
+          const result = await strategy.evaluate();
+          if (result && result.confidence > confidenceThreshold) {
+            const priorityRecord = prioritizedStrategies.find(
+              (p) => p.strategy === name
+            );
+            opportunities.push({
+              strategy,
+              result,
+              priority: {
+                tier: priorityRecord?.tier ?? PriorityTier.MEDIUM,
+                score: priorityRecord?.score ?? 0.5,
+              },
+            });
+            logger.info(`Opportunity found: ${name}`, {
+              confidence: result.confidence,
+              expectedReward: result.expectedReward,
+              tier: priorityRecord?.tier ?? "MEDIUM",
+            });
+          }
+        } catch (error) {
+          logger.error(`Strategy "${name}" evaluation failed`, {
+            error: (error as Error).message,
           });
         }
-      } catch (error) {
-        logger.error(`Strategy "${name}" evaluation failed`, {
-          error: (error as Error).message,
-        });
       }
-    }
 
-    if (opportunities.length > 0) {
-      // Sort by priority tier then score before execution
-      opportunities.sort((a, b) => {
-        const tierOrder: Record<PriorityTier, number> = {
-          [PriorityTier.CRITICAL]: 0,
-          [PriorityTier.HIGH]: 1,
-          [PriorityTier.MEDIUM]: 2,
-          [PriorityTier.LOW]: 3,
-          [PriorityTier.DORMANT]: 4,
-        };
-        const tierDiff = tierOrder[a.priority.tier] - tierOrder[b.priority.tier];
-        if (tierDiff !== 0) return tierDiff;
-        return b.priority.score - a.priority.score;
-      });
-      await this.executeOpportunity(opportunities);
-    } else {
-      this.status = "idle";
+      if (opportunities.length > 0) {
+        // Sort by priority tier then score before execution
+        opportunities.sort((a, b) => {
+          const tierOrder: Record<PriorityTier, number> = {
+            [PriorityTier.CRITICAL]: 0,
+            [PriorityTier.HIGH]: 1,
+            [PriorityTier.MEDIUM]: 2,
+            [PriorityTier.LOW]: 3,
+            [PriorityTier.DORMANT]: 4,
+          };
+          const tierDiff = tierOrder[a.priority.tier] - tierOrder[b.priority.tier];
+          if (tierDiff !== 0) return tierDiff;
+          return b.priority.score - a.priority.score;
+        });
+        await this.executeOpportunity(opportunities);
+      } else {
+        this.status = "idle";
+      }
+    } finally {
+      this.evaluating = false;
     }
   }
 
@@ -650,7 +658,7 @@ export class AgentController extends EventEmitter {
       const balance = await this.wallet.getBalance();
       this.riskManager.updateBalance(balance);
 
-      if (balance < LOW_BALANCE_THRESHOLD) {
+      if (balance < LOW_BALANCE_THRESHOLD_SOL) {
         this.emit("alert", {
           type: "low_balance",
           message: `Low balance warning: ${balance.toFixed(4)} SOL`,
@@ -683,7 +691,7 @@ export class AgentController extends EventEmitter {
     try {
       balance = await this.wallet.getBalance();
     } catch {
-      // Balance check may fail if no connection
+      logger.debug("Balance check failed in getState");
     }
 
     return {

@@ -1,6 +1,7 @@
 import { createLogger } from "./logger.js";
 import type { MemorySystem } from "./memory.js";
 import type { StreamManager } from "./streaming/index.js";
+import { MCP_DEFAULT_TIMEOUT_MS, MCP_DEFAULT_RATE_PER_MINUTE, RATE_LIMIT_WINDOW_MS } from "../constants.js";
 
 const logger = createLogger("mcp");
 
@@ -26,7 +27,7 @@ export interface MCPConfig {
   streamManager?: StreamManager;
 }
 
-const SHELL_INJECTION_PATTERNS = /[;`|]|&&|\$\(|\$\{/;
+const SHELL_INJECTION_PATTERNS = /[;`|><#\n\r]|&&|\|\||\$\(|\$\{/;
 
 export class MCPExecutionLayer {
   private allowedTools: Map<string, Set<string>> = new Map();
@@ -38,8 +39,8 @@ export class MCPExecutionLayer {
 
   constructor(config: MCPConfig, memory: MemorySystem) {
     this.config = {
-      defaultTimeoutMs: config.defaultTimeoutMs ?? 30000,
-      maxRatePerMinute: config.maxRatePerMinute ?? 30,
+      defaultTimeoutMs: config.defaultTimeoutMs ?? MCP_DEFAULT_TIMEOUT_MS,
+      maxRatePerMinute: config.maxRatePerMinute ?? MCP_DEFAULT_RATE_PER_MINUTE,
       auditEnabled: config.auditEnabled ?? true,
     };
     this.memory = memory;
@@ -159,7 +160,7 @@ export class MCPExecutionLayer {
 
     // Prune all rate-limit windows to prevent unbounded growth
     for (const [key, window] of this.rateLimitWindows) {
-      const pruned = window.filter((t) => now - t < 60000);
+      const pruned = window.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
       if (pruned.length === 0) {
         this.rateLimitWindows.delete(key);
       } else if (pruned.length !== window.length) {
@@ -168,7 +169,7 @@ export class MCPExecutionLayer {
     }
 
     const window = this.rateLimitWindows.get(strategy) ?? [];
-    const filtered = window.filter((t) => now - t < 60000);
+    const filtered = window.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
 
     if (filtered.length >= this.config.maxRatePerMinute) {
       return false;
@@ -181,10 +182,20 @@ export class MCPExecutionLayer {
 
   private sanitizeInputs(params: Record<string, unknown>): string | null {
     for (const [key, value] of Object.entries(params)) {
-      if (typeof value === "string" && SHELL_INJECTION_PATTERNS.test(value)) {
+      if (Array.isArray(value)) {
+        for (let i = 0; i < value.length; i++) {
+          const elem = value[i];
+          if (typeof elem === "string" && SHELL_INJECTION_PATTERNS.test(elem)) {
+            return `Input sanitization failed: suspicious pattern detected in parameter '${key}[${i}]'`;
+          }
+          if (typeof elem === "object" && elem !== null) {
+            const nested = this.sanitizeInputs(elem as Record<string, unknown>);
+            if (nested) return nested;
+          }
+        }
+      } else if (typeof value === "string" && SHELL_INJECTION_PATTERNS.test(value)) {
         return `Input sanitization failed: suspicious pattern detected in parameter '${key}'`;
-      }
-      if (typeof value === "object" && value !== null) {
+      } else if (typeof value === "object" && value !== null) {
         const nested = this.sanitizeInputs(value as Record<string, unknown>);
         if (nested) return nested;
       }

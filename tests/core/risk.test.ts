@@ -219,4 +219,53 @@ describe("RiskManager", () => {
       expect(risk.isInCooldown()).toBe(false);
     });
   });
+
+  describe("restoreState schema version", () => {
+    it("should start fresh when persisted state has no schema version", () => {
+      // Manually store state without schemaVersion
+      memory.remember(
+        "risk_state",
+        JSON.stringify({
+          trades: [{ amount: 0.5, result: -0.2, timestamp: Date.now() }],
+          startingBalance: 10.0,
+          currentBalance: 9.8,
+          lastLossTime: Date.now(),
+          openPositions: 0.5,
+        })
+      );
+
+      // Create a new RiskManager that will try to restore from memory
+      const freshRisk = new RiskManager(5.0, { cooldownAfterLoss: 0 }, memory);
+
+      // Should have started fresh (not restored the old trades/balance)
+      const pnl = freshRisk.getDailyPnL();
+      expect(pnl.tradeCount).toBe(0);
+      expect(freshRisk.getCurrentBalance()).toBe(5.0);
+      expect(freshRisk.getOpenPositions()).toBe(0);
+    });
+
+    it("should start fresh when persisted state has mismatched schema version", () => {
+      // Manually store state with wrong schemaVersion
+      memory.remember(
+        "risk_state",
+        JSON.stringify({
+          schemaVersion: 999,
+          trades: [{ amount: 0.5, result: -0.2, timestamp: Date.now() }],
+          startingBalance: 10.0,
+          currentBalance: 9.8,
+          lastLossTime: Date.now(),
+          openPositions: 0.5,
+        })
+      );
+
+      // Create a new RiskManager that will try to restore from memory
+      const freshRisk = new RiskManager(5.0, { cooldownAfterLoss: 0 }, memory);
+
+      // Should have started fresh (not restored the old trades/balance)
+      const pnl = freshRisk.getDailyPnL();
+      expect(pnl.tradeCount).toBe(0);
+      expect(freshRisk.getCurrentBalance()).toBe(5.0);
+      expect(freshRisk.getOpenPositions()).toBe(0);
+    });
+  });
 });

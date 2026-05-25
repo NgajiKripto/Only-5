@@ -271,7 +271,7 @@ export class MemorySystem {
 
   /**
    * Prune records older than maxAgeDays from all tables.
-   * Runs VACUUM after deletion to reclaim disk space.
+   * Runs VACUUM after deletion only if records were actually removed.
    */
   prune(maxAgeDays: number): void {
     const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
@@ -289,9 +289,13 @@ export class MemorySystem {
 
     logger.info(`Pruned ${decisionsResult.changes} decisions and ${observationsResult.changes} observations`);
 
-    // VACUUM to reclaim disk space
-    this.db.exec("VACUUM");
-    logger.debug("Database VACUUM completed");
+    const totalChanges = decisionsResult.changes + observationsResult.changes;
+    if (totalChanges > 0) {
+      this.db.exec("VACUUM");
+      logger.debug("Database VACUUM completed after pruning", { deletedRecords: totalChanges });
+    } else {
+      logger.debug("No records pruned, skipping VACUUM");
+    }
   }
 
   // --- Advanced Memory System Methods ---

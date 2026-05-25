@@ -3,6 +3,8 @@ import type { MemorySystem } from "./memory.js";
 
 const logger = createLogger("risk");
 
+const RISK_STATE_SCHEMA_VERSION = 1;
+
 export interface RiskLimits {
   maxDailyLoss: number; // percentage of starting balance (0-1), default 0.20
   maxTradeSize: number; // percentage of current balance (0-1), default 0.10
@@ -224,6 +226,7 @@ export class RiskManager {
       this.memory.remember(
         "risk_state",
         JSON.stringify({
+          schemaVersion: RISK_STATE_SCHEMA_VERSION,
           trades: this.trades.slice(-100), // Keep last 100 trades
           startingBalance: this.startingBalance,
           currentBalance: this.currentBalance,
@@ -245,6 +248,15 @@ export class RiskManager {
       const states = this.memory.recall("risk_state", 1);
       if (states.length > 0) {
         const state = JSON.parse(states[0].content);
+
+        if (state.schemaVersion !== RISK_STATE_SCHEMA_VERSION) {
+          logger.warn("Risk state schema version mismatch, starting fresh", {
+            found: state.schemaVersion,
+            expected: RISK_STATE_SCHEMA_VERSION,
+          });
+          return;
+        }
+
         this.trades = state.trades ?? [];
         this.lastLossTime = state.lastLossTime ?? 0;
         this.openPositions = state.openPositions ?? 0;
