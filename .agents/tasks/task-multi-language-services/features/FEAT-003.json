@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Go Agent Orchestration Service - A Go HTTP service for managing sub-agent lifecycle, parallel task dispatch via goroutines, real-time event streaming (SSE), session management, and capability-based routing.",
+  "status": "completed",
+  "steps": [
+    "Create services/orchestrator/go.mod with module path and Go 1.21+ requirement",
+    "Create services/orchestrator/cmd/server/main.go - Entry point: HTTP server on port 7002, register routes, graceful shutdown",
+    "Create services/orchestrator/internal/agents/registry.go - Agent registry: register agents by name with capabilities, find agents by task type (matching capabilities), list all agents with status",
+    "Create services/orchestrator/internal/agents/runner.go - Agent runner: execute task on specific agent, timeout handling with context.WithTimeout, result collection",
+    "Create services/orchestrator/internal/agents/types.go - Shared types: AgentConfig, AgentTask, AgentResult, AgentStatus",
+    "Create services/orchestrator/internal/agents/security.go - Security agent definition: capabilities=[security-scan, vulnerability-check, contract-audit], priority=10",
+    "Create services/orchestrator/internal/agents/defi.go - DeFi agent definition: capabilities=[token-swap, liquidity-check, yield-farm], priority=8",
+    "Create services/orchestrator/internal/agents/market.go - Market agent definition: capabilities=[price-check, sentiment-analysis, trend-detection], priority=7",
+    "Create services/orchestrator/internal/agents/bounty.go - Bounty agent definition: capabilities=[bounty-search, submission-track, reward-claim], priority=6",
+    "Create services/orchestrator/internal/streaming/events.go - Event types: AgentStarted, AgentCompleted, AgentFailed, TaskDispatched, SessionCreated",
+    "Create services/orchestrator/internal/streaming/manager.go - SSE streaming manager: create sessions, broadcast events to subscribers, buffer recent events, cleanup expired sessions",
+    "Create services/orchestrator/internal/session/session.go - Session management: create/get/list sessions with unique IDs, track active tasks per session, session expiry",
+    "Create services/orchestrator/internal/handlers/handlers.go - HTTP handlers: POST /dispatch (single task), POST /dispatch/parallel (multiple tasks via goroutines), GET /agents (list registered), GET /health, GET /stream (SSE endpoint), POST /sessions (create), GET /sessions/:id (get status)",
+    "Create services/orchestrator/tests/orchestrator_test.go - Tests covering: agent registration, capability matching, parallel dispatch, session management, event streaming"
+  ],
+  "acceptance_criteria": [
+    "Running 'cd services/orchestrator && go build ./...' compiles without errors",
+    "Running 'cd services/orchestrator && go test ./...' passes all tests",
+    "Agent registry correctly matches tasks to agents by capability",
+    "Parallel dispatch uses goroutines and returns all results",
+    "Session management creates/tracks/expires sessions correctly",
+    "GET /health returns healthy status"
+  ],
+  "verification": [
+    "cd services/orchestrator && go build ./cmd/server/",
+    "cd services/orchestrator && go test ./... -v 2>&1 | tail -30"
+  ],
+  "blocked_reason": null,
+  "findings": "All tests pass. Used UnixNano-based millisecond timestamps for session expiry to avoid timing issues with second-precision Unix timestamps. No external dependencies needed - standard library only."
+}
