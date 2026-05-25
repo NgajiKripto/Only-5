@@ -1,0 +1,30 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Rust High-Performance Execution Engine - A Rust binary/HTTP service for command validation, input sanitization, streaming JSON output parsing, and execution with proper timeout/signal handling. Communicates via HTTP JSON API.",
+  "status": "completed",
+  "steps": [
+    "Create services/executor/Cargo.toml with dependencies: tokio, axum (HTTP), serde/serde_json, regex, thiserror, tracing/tracing-subscriber",
+    "Create services/executor/src/models.rs - Shared types: ExecutionRequest, ExecutionResult, ValidationResult, CommandConfig, HealthResponse",
+    "Create services/executor/src/validator.rs - Command validation with whitelist of allowed commands, pattern matching against dangerous patterns (shell injection, path traversal, etc)",
+    "Create services/executor/src/sanitizer.rs - Input sanitization: strip shell metacharacters, normalize paths, validate URL formats, detect and block injection attempts",
+    "Create services/executor/src/executor.rs - Command execution with tokio: timeout management via tokio::time::timeout, proper signal handling with tokio::signal, capture stdout/stderr, streaming line-by-line output",
+    "Create services/executor/src/parser.rs - JSON line parser: process streaming output line by line, extract structured findings from JSON lines, handle malformed input gracefully",
+    "Create services/executor/src/main.rs - Entry point: axum HTTP server on port 7003 with routes POST /execute (validate and run), POST /validate (validation only), POST /sanitize (sanitize input), GET /health",
+    "Create services/executor/tests/integration_test.rs - Integration tests: command validation accepts/rejects correctly, sanitizer strips dangerous chars, executor handles timeouts, parser extracts findings from JSON lines"
+  ],
+  "acceptance_criteria": [
+    "Running 'cd services/executor && cargo build' compiles without errors",
+    "Running 'cd services/executor && cargo test' passes all tests",
+    "Validator correctly rejects commands containing shell injection patterns",
+    "Sanitizer removes dangerous characters while preserving valid input",
+    "Parser correctly extracts structured data from JSON line streams",
+    "Timeout handling properly terminates long-running executions"
+  ],
+  "verification": [
+    "cd services/executor && cargo build 2>&1 | tail -5",
+    "cd services/executor && cargo test 2>&1 | tail -20"
+  ],
+  "blocked_reason": null,
+  "findings": "All 34 tests pass (26 unit + 8 integration). ping not available in sandbox so used find / for timeout test. Whitespace normalization in sanitizer collapses spaces after metachar removal. Rust 1.92.0 compiles cleanly with axum 0.7.9, tokio 1.52, tower-http 0.5.2."
+}

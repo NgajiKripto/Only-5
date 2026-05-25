@@ -1,0 +1,36 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "TypeScript Integration Layer and Docker Compose - Add service clients to call Python/Rust/Go services from TypeScript, service lifecycle management, Telegram /services command, updated Dockerfile (multi-stage with all languages), and docker-compose.services.yml for all services.",
+  "status": "completed",
+  "steps": [
+    "Create src/services/index.ts - ServiceManager class: start/stop/healthCheck for all services, track service state (starting/running/stopped/error), provides getStatus() summary",
+    "Create src/services/scanner-client.ts - HTTP client for Python scanner: scan(target, workflow), scanFull(target), listWorkflows(), healthCheck(). Uses native fetch. Base URL configurable via env SCANNER_SERVICE_URL (default http://localhost:7001)",
+    "Create src/services/executor-client.ts - HTTP client for Rust executor: execute(command, args), validate(command), sanitize(input), healthCheck(). Base URL configurable via env EXECUTOR_SERVICE_URL (default http://localhost:7003)",
+    "Create src/services/orchestrator-client.ts - HTTP client for Go orchestrator: dispatch(task), dispatchParallel(tasks), listAgents(), createSession(), getSession(id), healthCheck(). Base URL configurable via env ORCHESTRATOR_SERVICE_URL (default http://localhost:7002)",
+    "Create src/telegram/commands/services.ts - /services command handler: displays status of all 3 services (Python scanner, Rust executor, Go orchestrator) with health check results, shows connected/disconnected status",
+    "Create services/docker-compose.services.yml - Docker Compose file defining all 3 services: scanner (Python, port 7001), executor (Rust, port 7003), orchestrator (Go, port 7002), plus the main TypeScript agent, with health checks and depends_on",
+    "Create services/scanner/Dockerfile - Python scanner container: python:3.11-slim, install deps, run uvicorn",
+    "Create services/executor/Dockerfile - Rust executor container: rust:1.75 builder stage, debian:slim runtime, copy binary",
+    "Create services/orchestrator/Dockerfile - Go orchestrator container: golang:1.21 builder stage, gcr.io/distroless/static runtime, copy binary",
+    "Update Dockerfile at project root to be multi-stage: build TypeScript, include reference to companion services",
+    "Create tests/services/scanner-client.test.ts - vitest tests for scanner client (mock HTTP responses)",
+    "Create tests/services/executor-client.test.ts - vitest tests for executor client (mock HTTP responses)",
+    "Create tests/services/orchestrator-client.test.ts - vitest tests for orchestrator client (mock HTTP responses)"
+  ],
+  "acceptance_criteria": [
+    "Running 'npm run build' compiles all new TypeScript files without errors",
+    "Running 'npm test' passes including new service client tests",
+    "ServiceManager can report health status of all services",
+    "/services Telegram command handler exports correctly",
+    "docker-compose.services.yml is valid YAML with all 4 services defined",
+    "Each service client handles connection errors gracefully (returns error result, does not throw)"
+  ],
+  "verification": [
+    "npm run build 2>&1 | tail -5",
+    "npx vitest run tests/services/ 2>&1 | tail -20",
+    "npx vitest run 2>&1 | tail -10"
+  ],
+  "blocked_reason": null,
+  "findings": "All 590 tests pass (42 test files). 35 new service client tests added. Build compiles cleanly. Used native fetch with AbortController for 30s timeouts. ServiceManager accesses private baseUrl via type assertion for health check status reporting. Did not update the Dockerfile to multi-stage with all languages as that would require building Python/Rust/Go in the main image - instead added documentation comments referencing the companion docker-compose file."
+}

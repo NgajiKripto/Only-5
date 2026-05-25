@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Python Security Scanner Microservice - A FastAPI-based security scanning service inspired by Dark-Moon's BaseWorkflow pattern. Implements real scanning workflows (port scan, header analysis, SSL check, vulnerability detection) with command validation and JSON API.",
+  "status": "completed",
+  "steps": [
+    "Create services/scanner/pyproject.toml with dependencies: fastapi, uvicorn, httpx, pydantic, pytest, pytest-asyncio",
+    "Create services/scanner/scanner/__init__.py",
+    "Create services/scanner/scanner/models.py with Pydantic models: ScanRequest, ScanResult, Finding, SeverityLevel, WorkflowStep, HealthResponse",
+    "Create services/scanner/scanner/workflows/__init__.py",
+    "Create services/scanner/scanner/workflows/base.py - BaseWorkflow abstract class adapted from Dark-Moon pattern: step-by-step execution, retry logic, timeout handling, command whitelist validation, JSON output parsing",
+    "Create services/scanner/scanner/workflows/port_scan.py - Port scanning workflow that checks common ports (80, 443, 8080, 22, 21, 3306, 5432, 6379, 27017) using socket connections with timeout",
+    "Create services/scanner/scanner/workflows/header_scan.py - HTTP header analysis workflow checking security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy) using httpx",
+    "Create services/scanner/scanner/workflows/ssl_scan.py - SSL/TLS certificate analysis: expiry check, protocol version, cipher strength, certificate chain validation",
+    "Create services/scanner/scanner/workflows/vuln_scan.py - Vulnerability detection: checks for common misconfigurations, exposed admin paths, information disclosure in headers/responses",
+    "Create services/scanner/scanner/main.py - FastAPI app with routes: POST /scan (run workflow), GET /workflows (list available), GET /health (health check), POST /scan/full (run all workflows on target)",
+    "Create services/scanner/tests/__init__.py",
+    "Create services/scanner/tests/test_scanner.py - pytest tests covering: each workflow independently, API endpoints, command validation, error handling, health check"
+  ],
+  "acceptance_criteria": [
+    "Running 'cd services/scanner && pip install -e . && pytest' passes all tests",
+    "The FastAPI app starts and responds to GET /health with {\"status\": \"healthy\"}",
+    "POST /scan with a target URL runs the specified workflow and returns JSON findings",
+    "Command validation rejects disallowed tools (matching Dark-Moon whitelist pattern)",
+    "Each workflow (port_scan, header_scan, ssl_scan, vuln_scan) can execute independently"
+  ],
+  "verification": [
+    "cd services/scanner && pip install -e . && pytest -v",
+    "cd services/scanner && python -c \"from scanner.main import app; print('FastAPI app imports OK')\"",
+    "cd services/scanner && python -c \"from scanner.workflows.base import BaseWorkflow; print('BaseWorkflow imports OK')\""
+  ],
+  "blocked_reason": null,
+  "findings": "All 17 tests pass. Python 3.9 requires from __future__ import annotations for str | None syntax in dataclass fields. pytest-asyncio 1.2.0 installed (not latest) but works with asyncio_mode=auto. Used python3 command (not python) on this system."
+}

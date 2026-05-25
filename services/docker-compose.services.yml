@@ -1,0 +1,50 @@
+services:
+  scanner:
+    build: ./scanner
+    ports:
+      - "7001:7001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  executor:
+    build: ./executor
+    ports:
+      - "7003:7003"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  orchestrator:
+    build: ./orchestrator
+    ports:
+      - "7002:7002"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  agent:
+    build: ../
+    env_file: ../.env
+    depends_on:
+      scanner:
+        condition: service_healthy
+      executor:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
+    volumes:
+      - ../data:/app/data
+    environment:
+      SCANNER_SERVICE_URL: http://scanner:7001
+      EXECUTOR_SERVICE_URL: http://executor:7003
+      ORCHESTRATOR_SERVICE_URL: http://orchestrator:7002
