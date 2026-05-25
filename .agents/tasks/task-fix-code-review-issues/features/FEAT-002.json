@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-002",
+  "type": "fix",
+  "description": "Fix all P0 and P1 security/architecture issues from the code review: remove private key logging, strengthen MCP input sanitization, secure passphrase generation, add evaluation mutex, and add URL validation for /scan command.",
+  "status": "pending",
+  "steps": [
+    "P0-1: In src/index.ts printBanner(), remove the line that logs last 8 chars of SOLANA_PRIVATE_KEY. Replace with just logging 'configured' or 'not configured' (do NOT include any part of the key).",
+    "P0-2: In src/core/mcp.ts, strengthen SHELL_INJECTION_PATTERNS regex to also detect newline chars (\\n, \\r, \\x0a, \\x0d), additional shell metacharacters (>, <, #, !, ~, ^(caret in shell context), \\\\). Update sanitizeInputs to handle arrays: if a value is an Array, iterate elements and check each string element. Keep existing nested object recursion.",
+    "P1-3: In src/config.ts, remove the code that writes the passphrase to a file (writeFileSync to data/auth-passphrase.txt). Instead, only output the passphrase to stdout (console.log) on first run. Add a comment noting this is intentional - the passphrase is shown once at startup and never persisted to disk.",
+    "P1-4: In src/core/agent.ts evaluateStrategies(), add a private instance variable `private evaluating = false`. At the top of evaluateStrategies(), check if `this.evaluating` is true - if so, return early. Set it to true at the start, and set it back to false in a finally block at the end of the method.",
+    "P1-5: In src/telegram/commands/security.ts, add URL protocol validation for the /scan command. After the existing URL format validation (try { new URL(target) }), add a check that the URL protocol is http: or https: only. Reject file://, ftp://, javascript:, data:, and other protocols with an appropriate error message."
+  ],
+  "acceptance_criteria": [
+    "printBanner() does not log any portion of SOLANA_PRIVATE_KEY - only logs 'configured' or 'not configured'",
+    "MCP sanitizeInputs detects newlines in string values",
+    "MCP sanitizeInputs handles array params by checking each string element",
+    "No passphrase file is written to disk - passphrase only shown in stdout",
+    "evaluateStrategies() has a mutex guard preventing concurrent execution",
+    "/scan command rejects non-http/https URLs",
+    "`npm run build` passes",
+    "`npm test` passes (update tests if needed to match new behavior)"
+  ],
+  "verification": [
+    "npm run build",
+    "npm test"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

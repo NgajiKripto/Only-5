@@ -1,0 +1,29 @@
+{
+  "id": "FEAT-003",
+  "type": "fix",
+  "description": "Fix all P2 and P3 code quality issues from the code review: extract magic numbers, add versioned state schema for RiskManager, improve error swallowing, replace unconditional VACUUM, and add TODO comment for jupiter.ts unused imports.",
+  "status": "pending",
+  "steps": [
+    "P2-6: Create src/constants.ts with named exports for commonly-used magic numbers found across the codebase. Include at minimum: LOW_BALANCE_THRESHOLD (from agent.ts), HEALTH_CHECK_TIMEOUT_MS (from agent.ts), MAX_RETRIES and BASE_BACKOFF_MS (from jupiter.ts), MAX_SCAN_QUEUE_SIZE (from telegram/commands/security.ts), PRUNE_RETENTION_DAYS (30, from agent.ts scheduler), RATE_LIMIT_WINDOW_MS (60000, from mcp.ts), DEFAULT_RISK_LIMITS values. Update the source files to import from constants.ts instead of defining locally.",
+    "P2-7: In src/core/risk.ts persistState(), add a `schemaVersion: 1` field to the serialized JSON. In restoreState(), check for the schemaVersion field when parsing. If missing or not matching current version, log a warning and skip restoration (start fresh). This protects against loading incompatible state.",
+    "P2-8: In src/core/agent.ts and src/index.ts, find all empty catch blocks (catch { } or catch (error) { } with no body/only a comment) and add appropriate logger.warn() or logger.debug() calls to log the error. In agent.ts getState() catch block, add logger.debug. In any other empty catches, add at minimum a logger.debug with the error message.",
+    "P2-10: In src/core/memory.ts prune() method, replace unconditional VACUUM with conditional execution. After deletions, only run VACUUM if (decisionsResult.changes + observationsResult.changes) > 0. This avoids expensive VACUUM on days with no pruning.",
+    "P3-11: In src/integrations/jupiter.ts, add a TODO comment above the `import { Connection, Keypair, VersionedTransaction }` line noting these imports are only used in the deprecated signAndSendSwapLegacy function and can be removed when that function is removed."
+  ],
+  "acceptance_criteria": [
+    "src/constants.ts exists with named exports for key magic numbers",
+    "Source files import from constants.ts rather than defining magic numbers inline (at least agent.ts, jupiter.ts, security.ts command)",
+    "RiskManager persistState includes schemaVersion, restoreState validates it",
+    "No empty catch blocks remain in agent.ts or index.ts",
+    "VACUUM only runs when records were actually deleted",
+    "jupiter.ts has TODO comment about deprecated imports",
+    "`npm run build` passes",
+    "`npm test` passes"
+  ],
+  "verification": [
+    "npm run build",
+    "npm test"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

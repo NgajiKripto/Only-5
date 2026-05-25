@@ -1,0 +1,27 @@
+{
+  "project_type": "TypeScript autonomous agent - Solana trading bot with Telegram interface",
+  "language": "TypeScript",
+  "build_system": "npm with tsc (TypeScript compiler)",
+  "test_framework": "vitest (42 test files, ~489 tests)",
+  "build_command": "npm run build",
+  "test_command": "npm test",
+  "verification_instructions": "1. Run `npm install` to install dependencies. 2. Run `npm run build` to verify TypeScript compilation. 3. Run `npm test` to verify all tests pass.",
+  "snapshot_or_generated_files": null,
+  "setup_instructions": "npm install",
+  "environment_constraints": "Node.js >=24 required. No Docker daemon needed for build/test.",
+  "contribution_requirements": "Keep changes minimal and focused. Do not break existing functionality. All 489 tests must pass.",
+  "key_patterns": "vitest for testing with describe/it/expect. Source in src/, tests in tests/ mirroring src/ structure. Uses zod for validation, grammy for Telegram bot, better-sqlite3 for persistence, winston for logging. Logger created via createLogger(module-name). Strategies implement a Strategy interface with evaluate() and execute() methods.",
+  "relevant_files": [
+    "src/config.ts",
+    "src/index.ts",
+    "src/core/agent.ts",
+    "src/core/mcp.ts",
+    "src/core/risk.ts",
+    "src/core/memory.ts",
+    "src/telegram/commands/security.ts",
+    "src/integrations/jupiter.ts",
+    "tests/core/mcp.test.ts",
+    "tests/core/risk.test.ts"
+  ],
+  "directory_structure": "src/ - main source (core/, integrations/, services/, strategies/, telegram/, types/). tests/ - mirrors src/ structure. data/ - runtime data. services/ - separate microservices (Go, Rust, Python). Root has package.json, tsconfig.json, Dockerfile."
+}
