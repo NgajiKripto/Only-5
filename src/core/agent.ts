@@ -389,7 +389,10 @@ export class AgentController extends EventEmitter {
 
   async evaluateStrategies(): Promise<void> {
     if (!this.running) return;
-    if (this.evaluating) return;
+    if (this.evaluating) {
+      logger.debug("Skipping overlapping evaluation");
+      return;
+    }
     this.evaluating = true;
 
     try {

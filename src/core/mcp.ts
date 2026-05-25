@@ -27,7 +27,7 @@ export interface MCPConfig {
   streamManager?: StreamManager;
 }
 
-const SHELL_INJECTION_PATTERNS = /[;`|><#\n\r]|&&|\|\||\$\(|\$\{|\x0a|\x0d/;
+const SHELL_INJECTION_PATTERNS = /[;`|><#\n\r]|&&|\|\||\$\(|\$\{/;
 
 export class MCPExecutionLayer {
   private allowedTools: Map<string, Set<string>> = new Map();
