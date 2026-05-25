@@ -27,6 +27,13 @@ export function registerSecurityCommands(
       return;
     }
 
+    // Validate URL protocol - only allow http and https
+    const parsedUrl = new URL(target);
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      await ctx.reply("Only HTTP and HTTPS URLs are allowed. Protocols like file://, ftp://, and javascript:// are not supported.");
+      return;
+    }
+
     // Get security-service strategy from agent via public accessor
     const securityService = agent.getStrategy("security-service") as any;
 

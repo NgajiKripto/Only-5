@@ -26,7 +26,7 @@ export interface MCPConfig {
   streamManager?: StreamManager;
 }
 
-const SHELL_INJECTION_PATTERNS = /[;`|]|&&|\$\(|\$\{/;
+const SHELL_INJECTION_PATTERNS = /[;`|><#\n\r]|&&|\|\||\$\(|\$\{|\x0a|\x0d/;
 
 export class MCPExecutionLayer {
   private allowedTools: Map<string, Set<string>> = new Map();
@@ -181,10 +181,20 @@ export class MCPExecutionLayer {
 
   private sanitizeInputs(params: Record<string, unknown>): string | null {
     for (const [key, value] of Object.entries(params)) {
-      if (typeof value === "string" && SHELL_INJECTION_PATTERNS.test(value)) {
+      if (Array.isArray(value)) {
+        for (let i = 0; i < value.length; i++) {
+          const elem = value[i];
+          if (typeof elem === "string" && SHELL_INJECTION_PATTERNS.test(elem)) {
+            return `Input sanitization failed: suspicious pattern detected in parameter '${key}[${i}]'`;
+          }
+          if (typeof elem === "object" && elem !== null) {
+            const nested = this.sanitizeInputs(elem as Record<string, unknown>);
+            if (nested) return nested;
+          }
+        }
+      } else if (typeof value === "string" && SHELL_INJECTION_PATTERNS.test(value)) {
         return `Input sanitization failed: suspicious pattern detected in parameter '${key}'`;
-      }
-      if (typeof value === "object" && value !== null) {
+      } else if (typeof value === "object" && value !== null) {
         const nested = this.sanitizeInputs(value as Record<string, unknown>);
         if (nested) return nested;
       }

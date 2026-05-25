@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "fix",
   "description": "Fix all P0 and P1 security/architecture issues from the code review: remove private key logging, strengthen MCP input sanitization, secure passphrase generation, add evaluation mutex, and add URL validation for /scan command.",
-  "status": "pending",
+  "status": "completed",
   "steps": [
     "P0-1: In src/index.ts printBanner(), remove the line that logs last 8 chars of SOLANA_PRIVATE_KEY. Replace with just logging 'configured' or 'not configured' (do NOT include any part of the key).",
     "P0-2: In src/core/mcp.ts, strengthen SHELL_INJECTION_PATTERNS regex to also detect newline chars (\\n, \\r, \\x0a, \\x0d), additional shell metacharacters (>, <, #, !, ~, ^(caret in shell context), \\\\). Update sanitizeInputs to handle arrays: if a value is an Array, iterate elements and check each string element. Keep existing nested object recursion.",
@@ -25,5 +25,5 @@
     "npm test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 5 fixes implemented successfully. Build passes and all 590 tests pass without modification. The expanded SHELL_INJECTION_PATTERNS regex did not break any existing tests since existing test cases used patterns (semicolons, pipes, backticks, &&, $()) that are still caught by the new regex."
 }

@@ -9,15 +9,13 @@ const logger = createLogger("main");
 const VERSION = "0.1.0";
 
 function printBanner(): void {
-  const walletAddress = config.SOLANA_PRIVATE_KEY
-    ? "****" + config.SOLANA_PRIVATE_KEY.slice(-8)
-    : "not configured";
+  const walletStatus = config.SOLANA_PRIVATE_KEY ? "configured" : "not configured";
 
   logger.info("=".repeat(50));
   logger.info(`${config.AGENT_NAME} v${VERSION}`);
   logger.info("Autonomous money-making agent");
   logger.info("-".repeat(50));
-  logger.info(`Wallet: ${walletAddress}`);
+  logger.info(`Wallet: ${walletStatus}`);
   logger.info(`RPC: ${config.SOLANA_RPC_URL}`);
   logger.info(`Log Level: ${config.LOG_LEVEL}`);
   logger.info("=".repeat(50));

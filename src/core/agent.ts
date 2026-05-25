@@ -49,6 +49,7 @@ export class AgentController extends EventEmitter {
   private schedulerGate!: SchedulerGate;
   private subconscious!: SubconsciousEngine;
   private currentEvalIntervalSeconds: number = 30;
+  private evaluating = false;
   private strategies: Map<string, Strategy> = new Map();
   private status: AgentState["status"] = "idle";
   private startTime: number = 0;
@@ -390,93 +391,99 @@ export class AgentController extends EventEmitter {
 
   async evaluateStrategies(): Promise<void> {
     if (!this.running) return;
+    if (this.evaluating) return;
+    this.evaluating = true;
 
-    // Check scheduler gate before proceeding
-    if (this.schedulerGate) {
-      const gateResult = await this.schedulerGate.canProceed();
-      if (!gateResult.allowed) {
-        logger.warn("Strategy evaluation blocked by gate", {
-          failedConditions: gateResult.failedConditions,
-        });
-        return;
-      }
-    }
-
-    this.status = "evaluating";
-    this.lastSuccessfulCycle = Date.now();
-
-    const confidenceThreshold = this.fallbackSystem.getConfidenceThreshold();
-    const skipLowPriority = this.fallbackSystem.shouldSkipLowPriority();
-    const prioritizedStrategies =
-      this.priorityManager.getPrioritizedStrategies();
-
-    const opportunities: Array<{
-      strategy: Strategy;
-      result: StrategyResult;
-      priority: { tier: PriorityTier; score: number };
-    }> = [];
-
-    for (const [name, strategy] of this.strategies) {
-      if (!strategy.enabled) continue;
-
-      // Check priority tier - skip low/dormant in normal mode
-      if (skipLowPriority) {
-        const priorityRecord = prioritizedStrategies.find(
-          (p) => p.strategy === name
-        );
-        if (
-          priorityRecord &&
-          (priorityRecord.tier === PriorityTier.LOW ||
-            priorityRecord.tier === PriorityTier.DORMANT)
-        ) {
-          continue;
+    try {
+      // Check scheduler gate before proceeding
+      if (this.schedulerGate) {
+        const gateResult = await this.schedulerGate.canProceed();
+        if (!gateResult.allowed) {
+          logger.warn("Strategy evaluation blocked by gate", {
+            failedConditions: gateResult.failedConditions,
+          });
+          return;
         }
       }
 
-      try {
-        const result = await strategy.evaluate();
-        if (result && result.confidence > confidenceThreshold) {
+      this.status = "evaluating";
+      this.lastSuccessfulCycle = Date.now();
+
+      const confidenceThreshold = this.fallbackSystem.getConfidenceThreshold();
+      const skipLowPriority = this.fallbackSystem.shouldSkipLowPriority();
+      const prioritizedStrategies =
+        this.priorityManager.getPrioritizedStrategies();
+
+      const opportunities: Array<{
+        strategy: Strategy;
+        result: StrategyResult;
+        priority: { tier: PriorityTier; score: number };
+      }> = [];
+
+      for (const [name, strategy] of this.strategies) {
+        if (!strategy.enabled) continue;
+
+        // Check priority tier - skip low/dormant in normal mode
+        if (skipLowPriority) {
           const priorityRecord = prioritizedStrategies.find(
             (p) => p.strategy === name
           );
-          opportunities.push({
-            strategy,
-            result,
-            priority: {
-              tier: priorityRecord?.tier ?? PriorityTier.MEDIUM,
-              score: priorityRecord?.score ?? 0.5,
-            },
-          });
-          logger.info(`Opportunity found: ${name}`, {
-            confidence: result.confidence,
-            expectedReward: result.expectedReward,
-            tier: priorityRecord?.tier ?? "MEDIUM",
+          if (
+            priorityRecord &&
+            (priorityRecord.tier === PriorityTier.LOW ||
+              priorityRecord.tier === PriorityTier.DORMANT)
+          ) {
+            continue;
+          }
+        }
+
+        try {
+          const result = await strategy.evaluate();
+          if (result && result.confidence > confidenceThreshold) {
+            const priorityRecord = prioritizedStrategies.find(
+              (p) => p.strategy === name
+            );
+            opportunities.push({
+              strategy,
+              result,
+              priority: {
+                tier: priorityRecord?.tier ?? PriorityTier.MEDIUM,
+                score: priorityRecord?.score ?? 0.5,
+              },
+            });
+            logger.info(`Opportunity found: ${name}`, {
+              confidence: result.confidence,
+              expectedReward: result.expectedReward,
+              tier: priorityRecord?.tier ?? "MEDIUM",
+            });
+          }
+        } catch (error) {
+          logger.error(`Strategy "${name}" evaluation failed`, {
+            error: (error as Error).message,
           });
         }
-      } catch (error) {
-        logger.error(`Strategy "${name}" evaluation failed`, {
-          error: (error as Error).message,
-        });
       }
-    }
 
-    if (opportunities.length > 0) {
-      // Sort by priority tier then score before execution
-      opportunities.sort((a, b) => {
-        const tierOrder: Record<PriorityTier, number> = {
-          [PriorityTier.CRITICAL]: 0,
-          [PriorityTier.HIGH]: 1,
-          [PriorityTier.MEDIUM]: 2,
-          [PriorityTier.LOW]: 3,
-          [PriorityTier.DORMANT]: 4,
-        };
-        const tierDiff = tierOrder[a.priority.tier] - tierOrder[b.priority.tier];
-        if (tierDiff !== 0) return tierDiff;
-        return b.priority.score - a.priority.score;
-      });
-      await this.executeOpportunity(opportunities);
-    } else {
-      this.status = "idle";
+      if (opportunities.length > 0) {
+        // Sort by priority tier then score before execution
+        opportunities.sort((a, b) => {
+          const tierOrder: Record<PriorityTier, number> = {
+            [PriorityTier.CRITICAL]: 0,
+            [PriorityTier.HIGH]: 1,
+            [PriorityTier.MEDIUM]: 2,
+            [PriorityTier.LOW]: 3,
+            [PriorityTier.DORMANT]: 4,
+          };
+          const tierDiff = tierOrder[a.priority.tier] - tierOrder[b.priority.tier];
+          if (tierDiff !== 0) return tierDiff;
+          return b.priority.score - a.priority.score;
+        });
+        await this.executeOpportunity(opportunities);
+      } else {
+        this.status = "idle";
+      }
+    } finally {
+      this.evaluating = false;
     }
   }
 
