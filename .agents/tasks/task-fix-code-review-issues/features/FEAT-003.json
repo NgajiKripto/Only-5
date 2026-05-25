@@ -2,7 +2,7 @@
   "id": "FEAT-003",
   "type": "fix",
   "description": "Fix all P2 and P3 code quality issues from the code review: extract magic numbers, add versioned state schema for RiskManager, improve error swallowing, replace unconditional VACUUM, and add TODO comment for jupiter.ts unused imports.",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "P2-6: Create src/constants.ts with named exports for commonly-used magic numbers found across the codebase. Include at minimum: LOW_BALANCE_THRESHOLD (from agent.ts), HEALTH_CHECK_TIMEOUT_MS (from agent.ts), MAX_RETRIES and BASE_BACKOFF_MS (from jupiter.ts), MAX_SCAN_QUEUE_SIZE (from telegram/commands/security.ts), PRUNE_RETENTION_DAYS (30, from agent.ts scheduler), RATE_LIMIT_WINDOW_MS (60000, from mcp.ts), DEFAULT_RISK_LIMITS values. Update the source files to import from constants.ts instead of defining locally.",
     "P2-7: In src/core/risk.ts persistState(), add a `schemaVersion: 1` field to the serialized JSON. In restoreState(), check for the schemaVersion field when parsing. If missing or not matching current version, log a warning and skip restoration (start fresh). This protects against loading incompatible state.",
@@ -25,5 +25,5 @@
     "npm test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 590 tests pass. Build compiles cleanly. No test changes needed since all modifications are pure refactoring (extracting constants, adding logging, conditional logic). The start() catch in agent.ts already had logger.warn so only added error detail to the log metadata. No empty catch blocks found in index.ts."
 }
