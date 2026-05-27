@@ -15,26 +15,26 @@
     "lint": "eslint src/"
   },
   "dependencies": {
-    "@jup-ag/api": "^6.0.48",
-    "@solana/web3.js": "^1.98.0",
-    "better-sqlite3": "^11.9.0",
-    "dotenv": "^16.5.0",
-    "grammy": "^1.36.0",
-    "node-cron": "^3.0.3",
-    "uuid": "^11.1.0",
-    "winston": "^3.19.0",
-    "zod": "^3.25.0"
+    "@jup-ag/api": "6.0.48",
+    "@solana/web3.js": "1.98.0",
+    "better-sqlite3": "11.9.0",
+    "dotenv": "16.5.0",
+    "grammy": "1.36.0",
+    "node-cron": "3.0.3",
+    "uuid": "11.1.0",
+    "winston": "3.19.0",
+    "zod": "3.25.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^22.10.0",
-    "@types/node-cron": "^3.0.11",
-    "@types/uuid": "^10.0.0",
-    "@typescript-eslint/eslint-plugin": "^8.33.0",
-    "@typescript-eslint/parser": "^8.33.0",
-    "eslint": "^8.57.0",
-    "tsx": "^4.20.0",
-    "typescript": "^5.8.0",
-    "vitest": "^3.2.0"
+    "@types/better-sqlite3": "7.6.13",
+    "@types/node": "22.10.0",
+    "@types/node-cron": "3.0.11",
+    "@types/uuid": "10.0.0",
+    "@typescript-eslint/eslint-plugin": "8.33.0",
+    "@typescript-eslint/parser": "8.33.0",
+    "eslint": "8.57.0",
+    "tsx": "4.20.0",
+    "typescript": "5.8.0",
+    "vitest": "3.2.0"
   }
 }

@@ -1,4 +1,5 @@
 import { Bot, GrammyError, HttpError } from "grammy";
+import { timingSafeEqual } from "crypto";
 import { config, authPassphrase } from "../config.js";
 import { createLogger } from "../core/logger.js";
 import type { AgentController } from "../core/agent.js";
@@ -7,6 +8,8 @@ import type { MemorySystem } from "../core/memory.js";
 const logger = createLogger("telegram-bot");
 
 const PASSPHRASE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_AUTH_ATTEMPTS = 5;
+const BLOCK_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 
 export class TelegramBot {
   private bot: Bot;
@@ -16,6 +19,7 @@ export class TelegramBot {
   private passphraseUsed: boolean = false;
   private passphraseCreatedAt: number = Date.now();
   private memory: MemorySystem | null = null;
+  private failedAttempts: Map<number, { count: number; blockedUntil: number }> = new Map();
 
   constructor(agent: AgentController, authorizedChatIds?: number[]) {
     this.agent = agent;
@@ -153,6 +157,18 @@ export class TelegramBot {
       return false;
     }
 
+    // Check if chatId is blocked due to too many failed attempts
+    const attempts = this.failedAttempts.get(chatId);
+    if (attempts) {
+      if (attempts.blockedUntil > Date.now()) {
+        return false;
+      }
+      // Block window has expired - reset the entry to prevent permanent soft-blocking
+      if (attempts.blockedUntil > 0) {
+        this.failedAttempts.delete(chatId);
+      }
+    }
+
     // Check if the passphrase has expired
     const elapsed = Date.now() - this.passphraseCreatedAt;
     if (elapsed > PASSPHRASE_EXPIRY_MS) {
@@ -160,15 +176,37 @@ export class TelegramBot {
       return false;
     }
 
-    // Check if the message matches the auth passphrase
-    if (message.trim() === authPassphrase) {
-      this.addAuthorizedChat(chatId);
-      this.passphraseUsed = true;
-      logger.info(`Chat ${chatId} authorized via passphrase`);
-      return true;
+    // Timing-safe comparison
+    const input = Buffer.from(message.trim());
+    const expected = Buffer.from(authPassphrase);
+
+    if (input.length !== expected.length) {
+      this.trackFailedAttempt(chatId);
+      return false;
     }
 
-    return false;
+    const match = timingSafeEqual(input, expected);
+    if (!match) {
+      this.trackFailedAttempt(chatId);
+      return false;
+    }
+
+    // Success - clear failed attempts and authorize
+    this.failedAttempts.delete(chatId);
+    this.addAuthorizedChat(chatId);
+    this.passphraseUsed = true;
+    logger.info(`Chat ${chatId} authorized via passphrase`);
+    return true;
+  }
+
+  private trackFailedAttempt(chatId: number): void {
+    const attempts = this.failedAttempts.get(chatId) ?? { count: 0, blockedUntil: 0 };
+    attempts.count++;
+    if (attempts.count >= MAX_AUTH_ATTEMPTS) {
+      attempts.blockedUntil = Date.now() + BLOCK_DURATION_MS;
+      logger.warn(`Chat ${chatId} blocked for ${BLOCK_DURATION_MS / 60000} minutes after ${MAX_AUTH_ATTEMPTS} failed auth attempts`);
+    }
+    this.failedAttempts.set(chatId, attempts);
   }
 
   async start(): Promise<void> {

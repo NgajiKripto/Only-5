@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { config } from "../config.js";
 
 interface AgentTask {
   id: string;
@@ -51,6 +52,14 @@ export class OrchestratorClient {
     return this.baseUrl;
   }
 
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (config.INTERNAL_SERVICE_SECRET) {
+      headers["Authorization"] = `Bearer ${config.INTERNAL_SERVICE_SECRET}`;
+    }
+    return headers;
+  }
+
   async dispatch(
     task: Omit<AgentTask, "id" | "created_at">
   ): Promise<AgentResult> {
@@ -64,7 +73,7 @@ export class OrchestratorClient {
       const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
       const response = await fetch(`${this.baseUrl}/dispatch`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.getHeaders(),
         body: JSON.stringify(fullTask),
         signal: controller.signal,
       });
@@ -107,7 +116,7 @@ export class OrchestratorClient {
       const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
       const response = await fetch(`${this.baseUrl}/dispatch/parallel`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.getHeaders(),
         body: JSON.stringify({ tasks: fullTasks }),
         signal: controller.signal,
       });
@@ -142,6 +151,7 @@ export class OrchestratorClient {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
       const response = await fetch(`${this.baseUrl}/agents`, {
+        headers: this.getHeaders(),
         signal: controller.signal,
       });
       clearTimeout(timeout);
@@ -160,7 +170,7 @@ export class OrchestratorClient {
       const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
       const response = await fetch(`${this.baseUrl}/sessions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.getHeaders(),
         signal: controller.signal,
       });
       clearTimeout(timeout);
@@ -191,6 +201,7 @@ export class OrchestratorClient {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
       const response = await fetch(`${this.baseUrl}/sessions/${id}`, {
+        headers: this.getHeaders(),
         signal: controller.signal,
       });
       clearTimeout(timeout);
@@ -208,6 +219,7 @@ export class OrchestratorClient {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
       const response = await fetch(`${this.baseUrl}/health`, {
+        headers: this.getHeaders(),
         signal: controller.signal,
       });
       clearTimeout(timeout);

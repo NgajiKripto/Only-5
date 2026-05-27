@@ -1,3 +1,8 @@
+// SECURITY NOTE: For production deployments, consider replacing better-sqlite3 with
+// @journeyapps/sqlcipher or similar for at-rest encryption of the database file.
+// The database may contain sensitive trading data, decision history, and memory entries.
+import { chmodSync } from "fs";
+import { platform } from "os";
 import type Database from "better-sqlite3";
 import { v4 as uuidv4 } from "uuid";
 import { createLogger } from "../logger.js";
@@ -13,9 +18,21 @@ const logger = createLogger("memory-storage");
 
 export class MemoryStorage {
   private db: Database.Database;
+  private dbPath: string | null = null;
 
-  constructor(db: Database.Database) {
+  constructor(db: Database.Database, dbPath?: string) {
     this.db = db;
+    this.dbPath = dbPath ?? null;
+  }
+
+  static setFilePermissions(dbPath: string): void {
+    if (platform() !== "win32") {
+      try {
+        chmodSync(dbPath, 0o600);
+      } catch {
+        // Permission setting may fail in some environments
+      }
+    }
   }
 
   initialize(): void {
@@ -68,6 +85,12 @@ export class MemoryStorage {
       CREATE INDEX IF NOT EXISTS idx_knowledge_graph_edges_source ON knowledge_graph_edges(source_id);
       CREATE INDEX IF NOT EXISTS idx_knowledge_graph_edges_target ON knowledge_graph_edges(target_id);
     `);
+
+    // Set restrictive file permissions on the database
+    if (this.dbPath) {
+      MemoryStorage.setFilePermissions(this.dbPath);
+    }
+
     logger.info("Advanced memory storage initialized");
   }
 

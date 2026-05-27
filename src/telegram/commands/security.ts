@@ -1,5 +1,6 @@
 import type { Context } from "grammy";
 import type { AgentController } from "../../core/agent.js";
+import { validateUrlNotInternal } from "../../core/url-validator.js";
 import { MAX_SCAN_QUEUE_SIZE } from "../../constants.js";
 
 export function registerSecurityCommands(
@@ -30,6 +31,14 @@ export function registerSecurityCommands(
     // Only allow http and https protocols
     if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
       await ctx.reply("Only HTTP and HTTPS URLs are allowed. Protocols like file://, ftp://, and javascript:// are not supported.");
+      return;
+    }
+
+    // SSRF protection: block internal/private URLs
+    try {
+      await validateUrlNotInternal(target);
+    } catch {
+      await ctx.reply("Scanning internal or private network addresses is not allowed.");
       return;
     }
 

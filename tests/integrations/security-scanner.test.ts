@@ -11,6 +11,11 @@ import * as net from "net";
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
+// Mock url-validator to avoid real DNS lookups in tests
+vi.mock("../../src/core/url-validator.js", () => ({
+  validateUrlNotInternal: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock tls module
 vi.mock("tls", () => ({
   connect: vi.fn(),
