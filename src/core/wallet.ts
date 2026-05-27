@@ -167,14 +167,21 @@ export class WalletManager {
         count: instructions.length,
         max: maxInstructions,
       });
+      throw new Error(`Transaction rejected: instruction count ${instructions.length} exceeds maximum ${maxInstructions}`);
     }
 
     const accountKeys = transaction.message.staticAccountKeys;
+    const unknownPrograms: string[] = [];
     for (const ix of instructions) {
       const programId = accountKeys[ix.programIdIndex]?.toBase58();
       if (programId && !KNOWN_PROGRAM_IDS.has(programId)) {
-        logger.warn("Transaction references unknown program", { programId });
+        unknownPrograms.push(programId);
       }
+    }
+
+    if (unknownPrograms.length > 0) {
+      logger.warn("Transaction references unknown programs", { programs: unknownPrograms });
+      throw new Error(`Transaction rejected: unknown program(s) detected: ${unknownPrograms.join(", ")}`);
     }
   }
 

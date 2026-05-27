@@ -141,9 +141,9 @@ describe("validateUrlNotInternal", () => {
       await expect(validateUrlNotInternal("http://example.com/")).resolves.toBeUndefined();
     });
 
-    it("should handle DNS lookup failure gracefully", async () => {
+    it("should block when DNS lookup fails (fail-closed)", async () => {
       mockLookup.mockRejectedValue(new Error("ENOTFOUND"));
-      await expect(validateUrlNotInternal("http://nonexistent.invalid/")).resolves.toBeUndefined();
+      await expect(validateUrlNotInternal("http://nonexistent.invalid/")).rejects.toThrow("DNS resolution failed");
     });
   });
 

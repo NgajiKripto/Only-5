@@ -168,6 +168,19 @@ export class SecurityScanner {
   async checkSSL(hostname: string): Promise<Finding[]> {
     const findings: Finding[] = [];
 
+    // SSRF protection: validate hostname does not resolve to internal network
+    try {
+      await validateUrlNotInternal(`https://${hostname}`);
+    } catch (error) {
+      findings.push({
+        type: "scan_blocked",
+        severity: SeverityLevel.INFO,
+        title: "SSL check blocked by SSRF protection",
+        description: `The hostname ${hostname} was blocked: ${(error as Error).message}`,
+      });
+      return findings;
+    }
+
     try {
       const cert = await this.getSSLCertificate(hostname);
 

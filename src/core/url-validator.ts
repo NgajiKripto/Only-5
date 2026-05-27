@@ -63,7 +63,8 @@ export async function validateUrlNotInternal(url: string): Promise<void> {
     if ((error as Error).message.includes("blocked internal address")) {
       throw error;
     }
-    // DNS resolution failure - let the caller handle connection errors
-    logger.debug("DNS lookup failed for URL validation", { url, error: (error as Error).message });
+    // DNS resolution failure - fail closed to prevent SSRF bypass via DNS errors
+    logger.warn("SSRF blocked: DNS resolution failed (fail-closed)", { url, error: (error as Error).message });
+    throw new Error(`DNS resolution failed for ${cleanHostname} - request blocked for security`);
   }
 }
