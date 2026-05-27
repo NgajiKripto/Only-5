@@ -129,10 +129,12 @@ function analyzePrompt(input: string): PromptGuardResult {
   }
 
   // Base64 detection: look for base64-encoded content that may hide injection
-  const base64Regex = /[A-Za-z0-9+/=]{20,}/g;
+  const base64Regex = /[A-Za-z0-9+/]{40,}={0,2}/g;
   const base64Matches = normalized.match(base64Regex);
   if (base64Matches) {
     for (const match of base64Matches) {
+      // Only attempt decode if length is divisible by 4 (valid base64 padding)
+      if (match.length % 4 !== 0) continue;
       try {
         const decoded = Buffer.from(match, "base64").toString("utf-8");
         // Only process if decoded content looks like text

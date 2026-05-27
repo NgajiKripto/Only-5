@@ -159,8 +159,14 @@ export class TelegramBot {
 
     // Check if chatId is blocked due to too many failed attempts
     const attempts = this.failedAttempts.get(chatId);
-    if (attempts && attempts.blockedUntil > Date.now()) {
-      return false;
+    if (attempts) {
+      if (attempts.blockedUntil > Date.now()) {
+        return false;
+      }
+      // Block window has expired - reset the entry to prevent permanent soft-blocking
+      if (attempts.blockedUntil > 0) {
+        this.failedAttempts.delete(chatId);
+      }
     }
 
     // Check if the passphrase has expired

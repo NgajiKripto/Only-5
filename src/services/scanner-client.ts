@@ -135,6 +135,7 @@ export class ScannerClient {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
       const response = await fetch(`${this.baseUrl}/workflows`, {
+        headers: this.getHeaders(),
         signal: controller.signal,
       });
       clearTimeout(timeout);
@@ -152,6 +153,7 @@ export class ScannerClient {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
       const response = await fetch(`${this.baseUrl}/health`, {
+        headers: this.getHeaders(),
         signal: controller.signal,
       });
       clearTimeout(timeout);
