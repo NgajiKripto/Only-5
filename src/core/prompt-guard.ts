@@ -64,6 +64,24 @@ const DETECTION_RULES: DetectionRule[] = [
     score: 0.30,
     pattern: /(call|use|run|execute)\s+(the\s+)?(tool|function)\s+.*(without\s+approval|even\s+if\s+forbidden)/i,
   },
+  {
+    code: "control.llm_tokens",
+    message: "LLM control token pattern detected",
+    score: 0.35,
+    pattern: /(<\|im_start\|>|<\|im_end\|>|\[INST\]|\[\/INST\]|<<SYS>>|<\/SYS>)/i,
+  },
+  {
+    code: "override.indirect_injection",
+    message: "Indirect injection pattern detected",
+    score: 0.30,
+    pattern: /(your new task is|from now on you will|pretend to be|act as if|you must now|new instructions:)/i,
+  },
+  {
+    code: "exfiltrate.encoding",
+    message: "Data exfiltration via encoding attempt",
+    score: 0.25,
+    pattern: /(base64|hex\s*encode|encode the following|encode\s+.*\b(key|secret|token|password|private))/i,
+  },
 ];
 
 const REVIEW_THRESHOLD = 0.55;
@@ -76,13 +94,25 @@ function normalizeInput(text: string): string {
   let normalized = text.toLowerCase();
   // Strip zero-width characters
   normalized = normalized.replace(ZERO_WIDTH_REGEX, "");
+  // Normalize Unicode homoglyphs (Cyrillic lookalikes)
+  normalized = normalized
+    .replace(/\u0430/g, "a")
+    .replace(/\u0435/g, "e")
+    .replace(/\u043e/g, "o")
+    .replace(/\u0440/g, "p")
+    .replace(/\u0441/g, "c")
+    .replace(/\u0445/g, "x");
   // Normalize leet-speak
   normalized = normalized
     .replace(/0/g, "o")
     .replace(/1/g, "i")
     .replace(/3/g, "e")
     .replace(/4/g, "a")
-    .replace(/5/g, "s");
+    .replace(/5/g, "s")
+    .replace(/7/g, "t")
+    .replace(/8/g, "b")
+    .replace(/9/g, "g")
+    .replace(/@/g, "a");
   return normalized;
 }
 
@@ -95,6 +125,31 @@ function analyzePrompt(input: string): PromptGuardResult {
     if (rule.pattern.test(normalized)) {
       score += rule.score;
       reasons.push({ code: rule.code, message: rule.message });
+    }
+  }
+
+  // Base64 detection: look for base64-encoded content that may hide injection
+  const base64Regex = /[A-Za-z0-9+/=]{20,}/g;
+  const base64Matches = normalized.match(base64Regex);
+  if (base64Matches) {
+    for (const match of base64Matches) {
+      try {
+        const decoded = Buffer.from(match, "base64").toString("utf-8");
+        // Only process if decoded content looks like text
+        if (/^[\x20-\x7E\s]+$/.test(decoded) && decoded.length >= 10) {
+          const decodedNormalized = normalizeInput(decoded);
+          for (const rule of DETECTION_RULES) {
+            if (rule.pattern.test(decodedNormalized)) {
+              score += rule.score;
+              if (!reasons.some((r) => r.code === rule.code)) {
+                reasons.push({ code: rule.code, message: rule.message + " (base64-encoded)" });
+              }
+            }
+          }
+        }
+      } catch {
+        // Not valid base64, skip
+      }
     }
   }
 

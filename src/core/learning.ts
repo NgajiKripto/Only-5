@@ -1,5 +1,6 @@
 import type { MemorySystem, DecisionRecord } from "./memory.js";
 import { createLogger } from "./logger.js";
+import { z } from "zod";
 import type { LLMMessage, LLMResponse } from "../types/index.js";
 
 const logger = createLogger("learning");
@@ -15,6 +16,13 @@ export interface LearningDependencies {
   llm: (messages: LLMMessage[], options?: { temperature?: number; maxTokens?: number }) => Promise<LLMResponse>;
   memory: MemorySystem;
 }
+
+const LearningInsightSchema = z.object({
+  strategy: z.string().max(100),
+  pattern: z.string().max(1000),
+  recommendation: z.string().max(1000),
+  confidence: z.number().min(0).max(1),
+});
 
 export class LearningSystem {
   private llm: LearningDependencies["llm"];
@@ -188,16 +196,17 @@ export class LearningSystem {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) return [];
 
-      const parsed = JSON.parse(jsonMatch[0]) as { insights?: LearningInsight[] };
+      const parsed = JSON.parse(jsonMatch[0]) as { insights?: unknown[] };
       if (!parsed.insights || !Array.isArray(parsed.insights)) return [];
 
-      return parsed.insights.filter(
-        (i) =>
-          typeof i.strategy === "string" &&
-          typeof i.pattern === "string" &&
-          typeof i.recommendation === "string" &&
-          typeof i.confidence === "number"
-      );
+      const validInsights: LearningInsight[] = [];
+      for (const item of parsed.insights) {
+        const result = LearningInsightSchema.safeParse(item);
+        if (result.success) {
+          validInsights.push(result.data);
+        }
+      }
+      return validInsights;
     } catch {
       logger.warn("Failed to parse LLM insights response");
       return [];

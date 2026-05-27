@@ -1,3 +1,5 @@
+import { config } from "../config.js";
+
 interface ScanRequest {
   target: string;
   workflow: string;
@@ -43,6 +45,14 @@ export class ScannerClient {
     return this.baseUrl;
   }
 
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (config.INTERNAL_SERVICE_SECRET) {
+      headers["Authorization"] = `Bearer ${config.INTERNAL_SERVICE_SECRET}`;
+    }
+    return headers;
+  }
+
   async scan(
     target: string,
     workflow: string,
@@ -54,7 +64,7 @@ export class ScannerClient {
       const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
       const response = await fetch(`${this.baseUrl}/scan`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.getHeaders(),
         body: JSON.stringify(body),
         signal: controller.signal,
       });
@@ -88,7 +98,7 @@ export class ScannerClient {
       const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
       const response = await fetch(`${this.baseUrl}/scan/full`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.getHeaders(),
         body: JSON.stringify({ target }),
         signal: controller.signal,
       });

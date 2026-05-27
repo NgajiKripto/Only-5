@@ -1,3 +1,5 @@
+import { config } from "../config.js";
+
 interface ExecutionRequest {
   command: string;
   args: string[];
@@ -43,6 +45,14 @@ export class ExecutorClient {
     return this.baseUrl;
   }
 
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (config.INTERNAL_SERVICE_SECRET) {
+      headers["Authorization"] = `Bearer ${config.INTERNAL_SERVICE_SECRET}`;
+    }
+    return headers;
+  }
+
   async execute(
     command: string,
     args: string[],
@@ -59,7 +69,7 @@ export class ExecutorClient {
       const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
       const response = await fetch(`${this.baseUrl}/execute`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.getHeaders(),
         body: JSON.stringify(body),
         signal: controller.signal,
       });
@@ -97,7 +107,7 @@ export class ExecutorClient {
       const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
       const response = await fetch(`${this.baseUrl}/validate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.getHeaders(),
         body: JSON.stringify({ command, args }),
         signal: controller.signal,
       });
@@ -125,7 +135,7 @@ export class ExecutorClient {
       const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
       const response = await fetch(`${this.baseUrl}/sanitize`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: this.getHeaders(),
         body: JSON.stringify({ input }),
         signal: controller.signal,
       });

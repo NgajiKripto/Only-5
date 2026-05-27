@@ -11,9 +11,18 @@ import {
 import bs58 from "bs58";
 import { config } from "../config.js";
 import { createLogger } from "./logger.js";
+import { AsyncMutex } from "./mutex.js";
 import type { MemorySystem } from "./memory.js";
 
 const logger = createLogger("wallet");
+
+const KNOWN_PROGRAM_IDS = new Set([
+  "11111111111111111111111111111111", // System Program
+  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", // Token Program
+  "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL", // Associated Token Program
+  "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4", // Jupiter Aggregator v6
+  "ComputeBudget111111111111111111111111111111", // Compute Budget
+]);
 
 export interface TokenBalance {
   mint: string;
@@ -25,6 +34,7 @@ export class WalletManager {
   private connection: Connection;
   private keypair: Keypair;
   private memory: MemorySystem | null;
+  private transactionMutex = new AsyncMutex();
 
   constructor(memory?: MemorySystem, connection?: Connection, keypair?: Keypair) {
     this.memory = memory ?? null;
@@ -75,42 +85,44 @@ export class WalletManager {
   }
 
   async sendSol(to: string, amount: number): Promise<string> {
-    const balanceBefore = await this.getBalance();
+    return this.transactionMutex.withLock(async () => {
+      const balanceBefore = await this.getBalance();
 
-    const transaction = new Transaction().add(
-      SystemProgram.transfer({
-        fromPubkey: this.keypair.publicKey,
-        toPubkey: new PublicKey(to),
-        lamports: Math.round(amount * LAMPORTS_PER_SOL),
-      })
-    );
-
-    const signature = await sendAndConfirmTransaction(
-      this.connection,
-      transaction,
-      [this.keypair]
-    );
-
-    const balanceAfter = await this.getBalance();
-
-    logger.info(`Sent ${amount} SOL to ${to}`, { signature });
-
-    if (this.memory) {
-      this.memory.remember(
-        "transaction",
-        JSON.stringify({
-          type: "send_sol",
-          to,
-          amount,
-          signature,
-          balanceBefore,
-          balanceAfter,
-          pnl: balanceAfter - balanceBefore + amount,
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: this.keypair.publicKey,
+          toPubkey: new PublicKey(to),
+          lamports: Math.round(amount * LAMPORTS_PER_SOL),
         })
       );
-    }
 
-    return signature;
+      const signature = await sendAndConfirmTransaction(
+        this.connection,
+        transaction,
+        [this.keypair]
+      );
+
+      const balanceAfter = await this.getBalance();
+
+      logger.info(`Sent ${amount} SOL to ${to}`, { signature });
+
+      if (this.memory) {
+        this.memory.remember(
+          "transaction",
+          JSON.stringify({
+            type: "send_sol",
+            to,
+            amount,
+            signature,
+            balanceBefore,
+            balanceAfter,
+            pnl: balanceAfter - balanceBefore + amount,
+          })
+        );
+      }
+
+      return signature;
+    });
   }
 
   /**
@@ -128,16 +140,42 @@ export class WalletManager {
   async signAndSendVersionedTransaction(
     serializedTransaction: Buffer
   ): Promise<string> {
-    const transaction = VersionedTransaction.deserialize(serializedTransaction);
-    transaction.sign([this.keypair]);
+    return this.transactionMutex.withLock(async () => {
+      const transaction = VersionedTransaction.deserialize(serializedTransaction);
+      this.verifyTransactionSafety(transaction);
+      transaction.sign([this.keypair]);
 
-    const rawTransaction = transaction.serialize();
-    const signature = await this.connection.sendRawTransaction(rawTransaction, {
-      skipPreflight: false,
-      maxRetries: 2,
+      const rawTransaction = transaction.serialize();
+      const signature = await this.connection.sendRawTransaction(rawTransaction, {
+        skipPreflight: false,
+        maxRetries: 2,
+      });
+
+      return signature;
     });
+  }
 
-    return signature;
+  private verifyTransactionSafety(
+    transaction: VersionedTransaction,
+    opts?: { maxInstructions?: number }
+  ): void {
+    const maxInstructions = opts?.maxInstructions ?? 10;
+    const instructions = transaction.message.compiledInstructions;
+
+    if (instructions.length > maxInstructions) {
+      logger.warn("Transaction has unusually high instruction count", {
+        count: instructions.length,
+        max: maxInstructions,
+      });
+    }
+
+    const accountKeys = transaction.message.staticAccountKeys;
+    for (const ix of instructions) {
+      const programId = accountKeys[ix.programIdIndex]?.toBase58();
+      if (programId && !KNOWN_PROGRAM_IDS.has(programId)) {
+        logger.warn("Transaction references unknown program", { programId });
+      }
+    }
   }
 
   async trackPnL(

@@ -1,6 +1,8 @@
 import * as tls from "tls";
 import * as net from "net";
+import { z } from "zod";
 import { createLogger } from "../core/logger.js";
+import { validateUrlNotInternal } from "../core/url-validator.js";
 import type { LLMMessage, LLMResponse } from "../types/index.js";
 
 const logger = createLogger("security-scanner");
@@ -119,6 +121,18 @@ export class SecurityScanner {
     const findings: Finding[] = [];
 
     try {
+      await validateUrlNotInternal(url);
+    } catch {
+      findings.push({
+        type: "ssrf_blocked",
+        severity: SeverityLevel.INFO,
+        title: "Internal URL blocked",
+        description: `The URL ${url} resolves to an internal/private address and was blocked.`,
+      });
+      return findings;
+    }
+
+    try {
       const response = await fetch(url, {
         method: "HEAD",
         signal: AbortSignal.timeout(this.timeoutMs),
@@ -224,6 +238,18 @@ export class SecurityScanner {
     // checking for open redirects, etc.) against the target URL. Only use this
     // against targets the operator has explicit permission to test.
     const findings: Finding[] = [];
+
+    try {
+      await validateUrlNotInternal(url);
+    } catch {
+      findings.push({
+        type: "ssrf_blocked",
+        severity: SeverityLevel.INFO,
+        title: "Internal URL blocked",
+        description: `The URL ${url} resolves to an internal/private address and was blocked.`,
+      });
+      return findings;
+    }
 
     // Check for open redirects
     try {
@@ -360,6 +386,14 @@ export class SecurityScanner {
 
       const jsonMatch = response.content.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
+        const FindingSchema = z.object({
+          type: z.string().max(100),
+          severity: z.string().optional(),
+          title: z.string().max(200),
+          description: z.string().max(2000),
+          recommendation: z.string().max(1000).optional(),
+        });
+
         const parsed = JSON.parse(jsonMatch[0]) as Array<{
           type?: string;
           severity?: string;
@@ -369,13 +403,14 @@ export class SecurityScanner {
         }>;
 
         for (const item of parsed) {
-          if (item.type && item.title && item.description) {
+          const result = FindingSchema.safeParse(item);
+          if (result.success) {
             findings.push({
-              type: item.type,
-              severity: this.parseSeverity(item.severity),
-              title: item.title,
-              description: item.description,
-              recommendation: item.recommendation,
+              type: result.data.type,
+              severity: this.parseSeverity(result.data.severity),
+              title: result.data.title,
+              description: result.data.description,
+              recommendation: result.data.recommendation,
             });
           }
         }
@@ -400,6 +435,19 @@ export class SecurityScanner {
     ports?: number[]
   ): Promise<Finding[]> {
     const findings: Finding[] = [];
+
+    try {
+      await validateUrlNotInternal(`http://${hostname}`);
+    } catch {
+      findings.push({
+        type: "ssrf_blocked",
+        severity: SeverityLevel.INFO,
+        title: "Internal hostname blocked",
+        description: `The hostname ${hostname} resolves to an internal/private address and was blocked.`,
+      });
+      return findings;
+    }
+
     const portsToScan = ports ?? DEFAULT_SCAN_PORTS;
 
     const results = await Promise.allSettled(

@@ -29,6 +29,7 @@ const configSchema = z.object({
   LLM_ROUTER_ENABLED: z.string().default("true"),
   LLM_TERSE_MODE: z.string().default("true"),
   PROMPT_GUARD_ENABLED: z.string().default("true"),
+  INTERNAL_SERVICE_SECRET: z.string().optional(),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -56,6 +57,7 @@ export const config: Config = configSchema.parse({
   LLM_ROUTER_ENABLED: process.env.LLM_ROUTER_ENABLED || undefined,
   LLM_TERSE_MODE: process.env.LLM_TERSE_MODE || undefined,
   PROMPT_GUARD_ENABLED: process.env.PROMPT_GUARD_ENABLED || undefined,
+  INTERNAL_SERVICE_SECRET: process.env.INTERNAL_SERVICE_SECRET || undefined,
 });
 
 // If no owner chat ID and no passphrase configured, use the generated default.
@@ -64,6 +66,7 @@ export const authPassphrase: string = config.TELEGRAM_AUTH_PASSPHRASE ?? default
 if (!config.TELEGRAM_OWNER_CHAT_ID && !config.TELEGRAM_AUTH_PASSPHRASE) {
   console.log(`[AUTH] No TELEGRAM_OWNER_CHAT_ID or TELEGRAM_AUTH_PASSPHRASE set.`);
   console.log(`[AUTH] Generated one-time passphrase (shown once, not persisted to disk):`);
-  console.log(`[AUTH] ${authPassphrase}`);
+  console.log('[AUTH] Passphrase: ' + authPassphrase);
+  console.log('[AUTH] WARNING: Ensure application logs are secured. This passphrase is shown once.');
   console.log(`[AUTH] Send this passphrase to the Telegram bot to authorize yourself.`);
 }

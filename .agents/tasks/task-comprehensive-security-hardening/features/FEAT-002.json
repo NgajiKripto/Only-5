@@ -1,0 +1,37 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Implement comprehensive security hardening across 10 issues: SSRF protection, inter-service auth, transaction verification, enhanced prompt injection detection, mutex for balance operations, timing-safe auth, Zod LLM output validation, pinned npm deps, DB file permissions, and internal network guard",
+  "status": "in_progress",
+  "steps": [
+    "ISSUE 1 - SSRF Protection: Create `src/core/url-validator.ts` with a `validateUrlNotInternal(url: string)` function that (a) parses the URL, (b) resolves the hostname via `dns.promises.lookup()`, (c) checks the resolved IP against a blocklist (10.x, 172.16-31.x, 192.168.x, 127.x, ::1, 169.254.x, fe80::, 169.254.169.254), (d) throws an error if blocked. Apply this validation in `SecurityScanner.analyzeHeaders()`, `SecurityScanner.detectVulnerabilities()`, `SecurityScanner.scanPorts()` (resolve hostname before scanning), and in the `/scan` command handler in `src/telegram/commands/security.ts`.",
+    "ISSUE 2 & 10 - Inter-Service Authentication + Config: Add `INTERNAL_SERVICE_SECRET` as optional string to the zod config schema in `src/config.ts`. In `src/services/executor-client.ts`, `scanner-client.ts`, and `orchestrator-client.ts`, read this config and include `Authorization: Bearer ${secret}` header in all fetch requests when the secret is configured. If not configured, skip the header (backward-compatible).",
+    "ISSUE 3 - Transaction Verification: Add a `verifyTransactionSafety(transaction: VersionedTransaction, opts?: { maxInstructions?: number })` method to `src/core/wallet.ts` that (a) checks instruction count against max (default 10), (b) logs a warning if exceeded but still allows execution. Add an allowlist of known program IDs (Jupiter Aggregator v6, Token Program, Associated Token Program, System Program, Compute Budget) and log a warning if the transaction references unknown programs. Call `verifyTransactionSafety()` in `signAndSendVersionedTransaction()` before signing. In `src/integrations/jupiter.ts`, no changes needed since verification happens inside wallet.",
+    "ISSUE 4 - Enhanced Prompt Injection Detection: In `src/core/prompt-guard.ts`: (a) Expand leet-speak normalization to include 7->t, 8->b, 9->g, @->a. (b) Add base64 detection - if input contains a valid base64 string > 20 chars, decode it and run rules on decoded content too. (c) Add Unicode homoglyph normalization (Cyrillic a->a, e->e, o->o, p->p, c->c, x->x). (d) Add detection rule for LLM control tokens (`<|im_start|>`, `[INST]`, `<<SYS>>`, etc.) with score 0.35. (e) Add rule for indirect injection patterns ('your new task is', 'from now on you will', 'pretend to be', 'act as if') with score 0.30. (f) Add rule for data exfiltration via encoding ('base64', 'hex encode', 'encode the following' combined with sensitive terms) with score 0.25.",
+    "ISSUE 5 - Mutex: Create `src/core/mutex.ts` with an async mutex class using a promise queue pattern. Add a `transactionMutex` instance to `WalletManager` in `src/core/wallet.ts`. Wrap `sendSol()` and `signAndSendVersionedTransaction()` in the mutex so only one financial operation executes at a time.",
+    "ISSUE 6 - Timing-Safe Passphrase + Rate Limiting: In `src/telegram/bot.ts`: (a) Replace `message.trim() === authPassphrase` with `crypto.timingSafeEqual()` (handle length mismatch by returning false first). (b) Add rate limiting: track failed attempts per chatId with a Map<number, { count: number, blockedUntil: number }>, block after 5 failures for 15 minutes. (c) In `src/config.ts`, modify the passphrase logging to be more security-conscious - keep the log but add a warning about log security.",
+    "ISSUE 7 - Zod LLM Output Validation: In `src/core/learning.ts`: define a Zod schema for LearningInsight, validate parsed JSON in `parseInsights()` against it, clamp confidence to 0-1 range, enforce max string lengths. In `src/integrations/security-scanner.ts` (`analyzeSolanaProgram`): define a Zod schema for findings array items, validate parsed JSON, reject malformed entries.",
+    "ISSUE 8 - Pin npm Dependencies: In `package.json`, remove all `^` prefixes from dependency and devDependency versions to pin exact versions.",
+    "ISSUE 9 - Database File Permissions: In `src/core/memory/storage.ts`: add a comment at the top about encryption recommendation, and after the `initialize()` method sets up tables, set file permissions to 0600 using `fs.chmodSync()` for non-Windows platforms. Pass the dbPath as constructor parameter."
+  ],
+  "acceptance_criteria": [
+    "`npm run build` succeeds with no type errors",
+    "`npm test` passes all existing tests plus any new tests",
+    "URL validator correctly blocks private/internal IPs and allows public IPs",
+    "Service clients include Authorization header when INTERNAL_SERVICE_SECRET is configured",
+    "Transaction verification logs warnings for suspicious patterns",
+    "Prompt guard catches base64-encoded attacks, homoglyphs, LLM control tokens, and indirect injection",
+    "Mutex ensures sequential financial operations",
+    "Passphrase comparison uses timing-safe equals",
+    "Rate limiting blocks after 5 failed auth attempts",
+    "LLM output is validated against Zod schemas",
+    "All dependency versions are pinned (no ^ prefix)",
+    "Database file gets 0600 permissions on non-Windows"
+  ],
+  "verification": [
+    "npm run build",
+    "npm test"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}
