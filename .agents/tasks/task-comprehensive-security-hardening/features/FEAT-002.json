@@ -2,7 +2,7 @@
   "id": "FEAT-002",
   "type": "feat",
   "description": "Implement comprehensive security hardening across 10 issues: SSRF protection, inter-service auth, transaction verification, enhanced prompt injection detection, mutex for balance operations, timing-safe auth, Zod LLM output validation, pinned npm deps, DB file permissions, and internal network guard",
-  "status": "in_progress",
+  "status": "completed",
   "steps": [
     "ISSUE 1 - SSRF Protection: Create `src/core/url-validator.ts` with a `validateUrlNotInternal(url: string)` function that (a) parses the URL, (b) resolves the hostname via `dns.promises.lookup()`, (c) checks the resolved IP against a blocklist (10.x, 172.16-31.x, 192.168.x, 127.x, ::1, 169.254.x, fe80::, 169.254.169.254), (d) throws an error if blocked. Apply this validation in `SecurityScanner.analyzeHeaders()`, `SecurityScanner.detectVulnerabilities()`, `SecurityScanner.scanPorts()` (resolve hostname before scanning), and in the `/scan` command handler in `src/telegram/commands/security.ts`.",
     "ISSUE 2 & 10 - Inter-Service Authentication + Config: Add `INTERNAL_SERVICE_SECRET` as optional string to the zod config schema in `src/config.ts`. In `src/services/executor-client.ts`, `scanner-client.ts`, and `orchestrator-client.ts`, read this config and include `Authorization: Bearer ${secret}` header in all fetch requests when the secret is configured. If not configured, skip the header (backward-compatible).",
@@ -33,5 +33,5 @@
     "npm test"
   ],
   "blocked_reason": null,
-  "findings": ""
+  "findings": "All 9 steps implemented successfully. Build passes with no type errors. All 597 tests pass. The security-scanner test file needed a mock for the new url-validator module to prevent real DNS lookups in tests (unreachable.com resolves to 192.168.1.190 in this environment which triggers SSRF protection)."
 }
