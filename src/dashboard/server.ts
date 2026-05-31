@@ -8,6 +8,7 @@ const logger = createLogger("dashboard");
 
 export interface DashboardConfig {
   port?: number;
+  host?: string;
   enabled?: boolean;
 }
 
@@ -17,6 +18,7 @@ export class DashboardServer {
   private server: Server | null = null;
   private running = false;
   private port: number;
+  private host: string;
   private enabled: boolean;
   private wsServer: WebSocketServer;
 
@@ -27,6 +29,7 @@ export class DashboardServer {
 
   constructor(config?: DashboardConfig) {
     this.port = config?.port ?? 3000;
+    this.host = config?.host ?? "127.0.0.1";
     this.enabled = config?.enabled ?? true;
     this.wsServer = new WebSocketServer();
   }
@@ -67,13 +70,13 @@ export class DashboardServer {
         reject(err);
       });
 
-      this.server!.listen(this.port, () => {
+      this.server!.listen(this.port, this.host, () => {
         const addr = this.server!.address();
         if (addr && typeof addr === "object") {
           this.port = addr.port;
         }
         this.running = true;
-        logger.info(`Dashboard server started on port ${this.port}`);
+        logger.info(`Dashboard server started on ${this.host}:${this.port}`);
         resolve();
       });
     });
@@ -83,6 +86,8 @@ export class DashboardServer {
     if (!this.running || !this.server) {
       return;
     }
+
+    this.wsServer.close();
 
     return new Promise<void>((resolve) => {
       this.server!.close(() => {
@@ -100,6 +105,10 @@ export class DashboardServer {
 
   getPort(): number {
     return this.port;
+  }
+
+  getHost(): string {
+    return this.host;
   }
 
   getConnectionCount(): number {

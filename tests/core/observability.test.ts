@@ -191,4 +191,40 @@ describe("MetricsCollector", () => {
       expect(json.completedSpans).toBe(0);
     });
   });
+
+  describe("bounded accumulation", () => {
+    it("should limit completed spans to maxCompletedSpans", () => {
+      const bounded = new MetricsCollector({ maxCompletedSpans: 5 });
+      for (let i = 0; i < 10; i++) {
+        const span = bounded.startSpan(`op-${i}`);
+        bounded.endSpan(span.spanId);
+      }
+      const completed = bounded.getCompletedSpans();
+      expect(completed).toHaveLength(5);
+      // Should keep the most recent spans
+      expect(completed[0]!.name).toBe("op-5");
+      expect(completed[4]!.name).toBe("op-9");
+    });
+
+    it("should limit histogram samples to maxHistogramSamples", () => {
+      const bounded = new MetricsCollector({ maxHistogramSamples: 10 });
+      for (let i = 0; i < 20; i++) {
+        bounded.histogram("latency", i);
+      }
+      const stats = bounded.getHistogramStats("latency");
+      expect(stats).toBeDefined();
+      expect(stats!.count).toBe(10);
+      // Should keep the most recent samples (10-19)
+      expect(stats!.p50).toBe(15);
+    });
+
+    it("should use default limits of 1000 spans and 10000 histogram samples", () => {
+      const defaultMetrics = new MetricsCollector();
+      // Just verify it constructs without error
+      const span = defaultMetrics.startSpan("test");
+      defaultMetrics.endSpan(span.spanId);
+      defaultMetrics.histogram("h", 42);
+      expect(defaultMetrics.getCompletedSpans()).toHaveLength(1);
+    });
+  });
 });

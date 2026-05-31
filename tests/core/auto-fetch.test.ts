@@ -90,13 +90,17 @@ describe("AutoFetchManager", () => {
       manager.registerSource(createSource({ fetchFn }));
       manager.start();
 
+      // Immediate first fetch happens on start
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+
       // Advance one interval
       await vi.advanceTimersByTimeAsync(1000);
-      expect(fetchFn).toHaveBeenCalledTimes(1);
+      expect(fetchFn).toHaveBeenCalledTimes(2);
 
       // Advance another interval
       await vi.advanceTimersByTimeAsync(1000);
-      expect(fetchFn).toHaveBeenCalledTimes(2);
+      expect(fetchFn).toHaveBeenCalledTimes(3);
     });
 
     it("should not fetch disabled sources", async () => {
@@ -113,12 +117,16 @@ describe("AutoFetchManager", () => {
       manager.registerSource(createSource({ fetchFn }));
       manager.start();
 
-      await vi.advanceTimersByTimeAsync(1000);
+      // Immediate first fetch
+      await vi.advanceTimersByTimeAsync(0);
       expect(fetchFn).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(fetchFn).toHaveBeenCalledTimes(2);
 
       manager.stop();
       await vi.advanceTimersByTimeAsync(5000);
-      expect(fetchFn).toHaveBeenCalledTimes(1);
+      expect(fetchFn).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -127,7 +135,8 @@ describe("AutoFetchManager", () => {
       manager.registerSource(createSource());
       manager.start();
 
-      await vi.advanceTimersByTimeAsync(1000);
+      // Immediate fetch + one interval
+      await vi.advanceTimersByTimeAsync(0);
       const status = manager.getSourceStatus("test-source");
       expect(status!.successCount).toBe(1);
       expect(status!.failCount).toBe(0);
@@ -140,7 +149,8 @@ describe("AutoFetchManager", () => {
       manager.registerSource(createSource({ fetchFn }));
       manager.start();
 
-      await vi.advanceTimersByTimeAsync(1000);
+      // Immediate first fetch fails
+      await vi.advanceTimersByTimeAsync(0);
       const status = manager.getSourceStatus("test-source");
       expect(status!.successCount).toBe(0);
       expect(status!.failCount).toBe(1);
@@ -154,10 +164,12 @@ describe("AutoFetchManager", () => {
       manager.registerSource(createSource({ fetchFn }));
       manager.start();
 
-      await vi.advanceTimersByTimeAsync(1000);
+      // Immediate first fetch fails
+      await vi.advanceTimersByTimeAsync(0);
       expect(manager.getSourceStatus("test-source")!.lastError).toBe("fail");
 
-      await vi.advanceTimersByTimeAsync(1000);
+      // Next scheduled fetch succeeds (backoff doubles to 2x so next at 2000ms)
+      await vi.advanceTimersByTimeAsync(2000);
       expect(manager.getSourceStatus("test-source")!.lastError).toBeNull();
     });
   });
@@ -169,7 +181,8 @@ describe("AutoFetchManager", () => {
       manager.registerSource(createSource({ fetchFn: vi.fn().mockResolvedValue({ price: 42 }) }));
       manager.start();
 
-      await vi.advanceTimersByTimeAsync(1000);
+      // Immediate first fetch triggers onData
+      await vi.advanceTimersByTimeAsync(0);
       expect(onData).toHaveBeenCalledWith("test-source", { price: 42 });
     });
 
@@ -179,7 +192,8 @@ describe("AutoFetchManager", () => {
       manager.registerSource(createSource());
       manager.start();
 
-      await vi.advanceTimersByTimeAsync(1000);
+      // Immediate first fetch triggers onHealth
+      await vi.advanceTimersByTimeAsync(0);
       expect(onHealth).toHaveBeenCalledWith("test-source", true);
     });
 
@@ -189,7 +203,8 @@ describe("AutoFetchManager", () => {
       manager.registerSource(createSource({ fetchFn: vi.fn().mockRejectedValue(new Error("oops")) }));
       manager.start();
 
-      await vi.advanceTimersByTimeAsync(1000);
+      // Immediate first fetch fails, triggers onHealth
+      await vi.advanceTimersByTimeAsync(0);
       expect(onHealth).toHaveBeenCalledWith("test-source", false, "oops");
     });
   });
@@ -204,6 +219,91 @@ describe("AutoFetchManager", () => {
 
     it("should return undefined for unknown source", () => {
       expect(manager.getSourceStatus("nonexistent")).toBeUndefined();
+    });
+  });
+
+  describe("immediate first fetch", () => {
+    it("should fetch immediately on start without waiting for interval", async () => {
+      const fetchFn = vi.fn().mockResolvedValue({ data: "instant" });
+      manager.registerSource(createSource({ fetchFn, intervalMs: 60000 }));
+      manager.start();
+
+      // Even with a 60s interval, the first fetch happens immediately
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("exponential backoff", () => {
+    it("should increase delay after failure", async () => {
+      const fetchFn = vi.fn()
+        .mockRejectedValueOnce(new Error("fail1"))
+        .mockRejectedValueOnce(new Error("fail2"))
+        .mockResolvedValueOnce({ ok: true });
+      manager.registerSource(createSource({ fetchFn, intervalMs: 1000 }));
+      manager.start();
+
+      // Immediate first fetch fails, backoff becomes 2x
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+
+      // Next fetch at 2000ms (1000 * 2)
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(fetchFn).toHaveBeenCalledTimes(1); // not yet
+
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(fetchFn).toHaveBeenCalledTimes(2); // now at 2000ms
+
+      // After second failure, backoff becomes 4x, next at 4000ms
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(fetchFn).toHaveBeenCalledTimes(3);
+    });
+
+    it("should cap backoff at 5x the original interval", async () => {
+      const fetchFn = vi.fn().mockRejectedValue(new Error("fail"));
+      manager.registerSource(createSource({ fetchFn, intervalMs: 1000 }));
+      manager.start();
+
+      // Immediate fail -> backoff 2x
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+
+      // 2x delay (2000ms)
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+
+      // 4x delay (4000ms)
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(fetchFn).toHaveBeenCalledTimes(3);
+
+      // Capped at 5x delay (5000ms), not 8x
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(fetchFn).toHaveBeenCalledTimes(4);
+
+      // Still capped at 5x
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(fetchFn).toHaveBeenCalledTimes(5);
+    });
+
+    it("should reset backoff on success", async () => {
+      const fetchFn = vi.fn()
+        .mockRejectedValueOnce(new Error("fail"))
+        .mockResolvedValueOnce({ ok: true })
+        .mockResolvedValueOnce({ ok: true });
+      manager.registerSource(createSource({ fetchFn, intervalMs: 1000 }));
+      manager.start();
+
+      // Immediate fail -> backoff 2x
+      await vi.advanceTimersByTimeAsync(0);
+      expect(fetchFn).toHaveBeenCalledTimes(1);
+
+      // Next at 2000ms (2x backoff)
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+
+      // Success resets backoff, next at 1000ms (1x)
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(fetchFn).toHaveBeenCalledTimes(3);
     });
   });
 });

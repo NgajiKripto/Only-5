@@ -72,5 +72,44 @@ describe("WebSocketServer", () => {
       // With no clients, broadcast should not throw
       expect(() => wsServer.broadcast({ type: "test", data: 42 })).not.toThrow();
     });
+
+    it("should remove destroyed sockets during broadcast", () => {
+      const wsServer = new WebSocketServer();
+      // Access private clients set via any cast for testing
+      const mockSocket = {
+        destroyed: true,
+        write: () => {},
+      } as any;
+      (wsServer as any).clients.add(mockSocket);
+      expect(wsServer.getConnectionCount()).toBe(1);
+
+      wsServer.broadcast({ type: "test" });
+      // Destroyed socket should be cleaned up
+      expect(wsServer.getConnectionCount()).toBe(0);
+    });
+  });
+
+  describe("close", () => {
+    it("should destroy all client sockets and clear the set", () => {
+      const wsServer = new WebSocketServer();
+      const destroyCalls: boolean[] = [];
+      const mockSocket1 = {
+        destroyed: false,
+        destroy: () => { destroyCalls.push(true); },
+        write: () => {},
+      } as any;
+      const mockSocket2 = {
+        destroyed: false,
+        destroy: () => { destroyCalls.push(true); },
+        write: () => {},
+      } as any;
+      (wsServer as any).clients.add(mockSocket1);
+      (wsServer as any).clients.add(mockSocket2);
+      expect(wsServer.getConnectionCount()).toBe(2);
+
+      wsServer.close();
+      expect(wsServer.getConnectionCount()).toBe(0);
+      expect(destroyCalls).toHaveLength(2);
+    });
   });
 });

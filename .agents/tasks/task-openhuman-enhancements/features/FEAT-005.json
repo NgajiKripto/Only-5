@@ -1,0 +1,24 @@
+{
+  "id": "FEAT-005",
+  "type": "fix",
+  "description": "Address code review findings: dashboard localhost binding, observability bounds, auto-fetch immediate first fetch and exponential backoff, and WebSocket cleanup.",
+  "status": "in_progress",
+  "steps": [
+    "Step 1 - Dashboard bind to localhost: Add host option to DashboardConfig (default '127.0.0.1'), use it in server.listen()",
+    "Step 2 - Observability bounds: Add maxCompletedSpans (default 1000) and maxHistogramSamples (default 10000) constructor options with eviction",
+    "Step 3 - Auto-fetch immediate first fetch: Call fetchSource immediately in startSource()",
+    "Step 4 - WebSocket cleanup: Add close() method to destroy all clients, clean up destroyed sockets in broadcast()",
+    "Step 5 - Auto-fetch exponential backoff: Add per-source backoff multiplier, 2x factor, 5x cap, reset on success"
+  ],
+  "acceptance_criteria": [
+    "npx tsc --noEmit passes with no type errors",
+    "All existing tests continue to pass",
+    "New tests cover bounded spans/histograms, immediate fetch, backoff behavior, and WebSocket cleanup"
+  ],
+  "verification": [
+    "npx tsc --noEmit",
+    "npx vitest run"
+  ],
+  "blocked_reason": null,
+  "findings": null
+}

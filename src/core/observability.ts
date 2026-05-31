@@ -23,14 +23,23 @@ export interface MetricSnapshot {
   timestamp: number;
 }
 
+export interface MetricsCollectorOptions {
+  maxCompletedSpans?: number;
+  maxHistogramSamples?: number;
+}
+
 export class MetricsCollector {
   private counters: Map<string, number> = new Map();
   private gauges: Map<string, number> = new Map();
   private histogramValues: Map<string, number[]> = new Map();
   private activeSpans: Map<string, Span> = new Map();
   private completedSpans: Span[] = [];
+  private maxCompletedSpans: number;
+  private maxHistogramSamples: number;
 
-  constructor() {
+  constructor(options?: MetricsCollectorOptions) {
+    this.maxCompletedSpans = options?.maxCompletedSpans ?? 1000;
+    this.maxHistogramSamples = options?.maxHistogramSamples ?? 10000;
     logger.info("Metrics collector initialized");
   }
 
@@ -58,6 +67,9 @@ export class MetricsCollector {
   histogram(name: string, value: number): void {
     const values = this.histogramValues.get(name) ?? [];
     values.push(value);
+    if (values.length > this.maxHistogramSamples) {
+      values.splice(0, values.length - this.maxHistogramSamples);
+    }
     this.histogramValues.set(name, values);
   }
 
@@ -97,6 +109,9 @@ export class MetricsCollector {
     span.duration = span.endTime - span.startTime;
     this.activeSpans.delete(spanId);
     this.completedSpans.push(span);
+    if (this.completedSpans.length > this.maxCompletedSpans) {
+      this.completedSpans.splice(0, this.completedSpans.length - this.maxCompletedSpans);
+    }
     logger.debug(`Span ended: ${span.name}`, { spanId, duration: span.duration });
     return span;
   }

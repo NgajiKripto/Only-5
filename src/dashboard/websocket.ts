@@ -77,12 +77,27 @@ export class WebSocketServer {
   broadcast(data: object): void {
     const json = JSON.stringify(data);
     const frame = encodeFrame(json);
+    const destroyed: Socket[] = [];
 
     for (const client of this.clients) {
-      if (!client.destroyed) {
+      if (client.destroyed) {
+        destroyed.push(client);
+      } else {
         client.write(frame);
       }
     }
+
+    for (const client of destroyed) {
+      this.clients.delete(client);
+    }
+  }
+
+  close(): void {
+    for (const client of this.clients) {
+      client.destroy();
+    }
+    this.clients.clear();
+    logger.info("All WebSocket clients closed");
   }
 
   getConnectionCount(): number {
