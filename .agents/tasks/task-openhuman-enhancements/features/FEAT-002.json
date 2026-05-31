@@ -1,0 +1,34 @@
+{
+  "id": "FEAT-002",
+  "type": "feat",
+  "description": "Plugin/Skills Registry, Enhanced Privacy/Encryption, and Memory Markdown Export. These extend the core systems with new capabilities.",
+  "status": "completed",
+  "steps": [
+    "Step 1 - Create src/core/plugin-registry.ts: Implement Plugin interface (id: string, name: string, version: string, description: string, config?: Record<string,unknown>, init(): Promise<void>, destroy(): Promise<void>, getStrategy?(): Strategy). PluginRegistry class with: register(plugin), unregister(id), list(), getPlugin(id), initAll(), destroyAll(). Plugin lifecycle states: unloaded, initializing, active, stopping, error. Dynamic loading support via loadFromDirectory(path) that reads .ts/.js files. Plugin configuration via JSON config objects. Use createLogger('plugin-registry'). Error handling that catches init failures and marks plugins as errored without crashing the registry.",
+    "Step 2 - Create src/core/security/encryption.ts: Create src/core/security/ directory. Implement EncryptionService class using Node.js native crypto module: AES-256-GCM encrypt(plaintext, key) returning {ciphertext, iv, authTag}, decrypt(ciphertext, iv, authTag, key) returning plaintext, deriveKey(passphrase, salt) using PBKDF2 with 100000 iterations and SHA-512, rotateKey(oldPassphrase, newPassphrase, encryptedData) method for key rotation, generateSalt() helper. Also create AuditTrail class: log(action, actor, metadata), export() returning JSON array of audit entries, getByAction(action) filter. Use createLogger('encryption').",
+    "Step 3 - Create src/core/security/index.ts: Barrel file exporting EncryptionService, AuditTrail and their types.",
+    "Step 4 - Create src/core/memory/markdown-export.ts: Implement MarkdownExporter class with: exportAll(memories, outputDir) writing .md files organized by tier subdirectories (working/, episodic/, semantic/, procedural/), generateFrontmatter(entry: MemoryEntry) producing YAML frontmatter with tier, timestamp, confidence, tags, contentHash, exportSingle(entry, outputDir) writing one memory as .md with frontmatter, generateIndex(memories, outputDir) creating an index.md with hierarchical links, incrementalExport(memories, outputDir, lastExportTimestamp) exporting only entries created/modified after timestamp. Use Node.js fs module (writeFileSync/mkdirSync). Use createLogger('markdown-export').",
+    "Step 5 - Create tests/core/plugin-registry.test.ts: Test register/unregister, list, init/destroy lifecycle, error handling for failing plugins, getPlugin. Mock plugin objects.",
+    "Step 6 - Create tests/core/security/encryption.test.ts: Test encrypt/decrypt roundtrip, key derivation determinism, different salts produce different keys, key rotation, audit trail logging and export.",
+    "Step 7 - Create tests/core/memory/markdown-export.test.ts: Test frontmatter generation, single file export (use tmp directory or mock fs), index generation format, incremental export filtering.",
+    "Step 8 - Update src/core/index.ts: Add exports for PluginRegistry, EncryptionService, AuditTrail, MarkdownExporter and their types.",
+    "Step 9 - Update src/core/memory/index.ts: Add export for MarkdownExporter from ./markdown-export.js."
+  ],
+  "acceptance_criteria": [
+    "npx tsc --noEmit passes with no type errors",
+    "npx vitest run tests/core/plugin-registry.test.ts passes all tests",
+    "npx vitest run tests/core/security/encryption.test.ts passes all tests",
+    "npx vitest run tests/core/memory/markdown-export.test.ts passes all tests",
+    "PluginRegistry supports full plugin lifecycle management",
+    "EncryptionService provides AES-256-GCM encryption with PBKDF2 key derivation",
+    "MarkdownExporter outputs valid markdown with YAML frontmatter"
+  ],
+  "verification": [
+    "npx tsc --noEmit",
+    "npx vitest run tests/core/plugin-registry.test.ts",
+    "npx vitest run tests/core/security/encryption.test.ts",
+    "npx vitest run tests/core/memory/markdown-export.test.ts"
+  ],
+  "blocked_reason": null,
+  "findings": "All 49 tests pass (17 plugin-registry, 20 encryption, 12 markdown-export). tsc --noEmit passes with zero errors. The Strategy type is imported from ../types/index.js as planned. No new dependencies were needed - only Node.js native crypto, fs, path, and url modules were used."
+}

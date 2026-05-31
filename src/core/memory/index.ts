@@ -15,3 +15,4 @@ export { KnowledgeGraph } from "./knowledge-graph.js";
 export { ConsolidationPipeline } from "./consolidation.js";
 export { PrivacyFilter } from "./privacy.js";
 export { AdvancedMemorySystem } from "./advanced-memory-system.js";
+export { MarkdownExporter } from "./markdown-export.js";

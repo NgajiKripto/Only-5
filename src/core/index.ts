@@ -60,3 +60,14 @@ export { SubAgentOrchestrator, AgentRegistry, AgentRunner, SecurityAgent, DeFiAg
 export type { AgentConfig, AgentTask, AgentResult, OrchestrationPlan, AgentStatus } from "./orchestrator/index.js";
 export { StreamManager, TypedStreamEmitter, formatTimestamp, formatCommandStart, formatCommandOutput, formatStreamEvent, stripAnsi, NOISE_PATTERNS } from "./streaming/index.js";
 export type { EventType, StreamEvent, StreamSession, StreamFilter } from "./streaming/index.js";
+export { EventBus } from "./event-bus.js";
+export type { AgentEvents, AgentEventName } from "./event-bus.js";
+export { MetricsCollector } from "./observability.js";
+export type { Span, MetricSnapshot, MetricsCollectorOptions } from "./observability.js";
+export { AutoFetchManager } from "./auto-fetch.js";
+export type { DataSource, FetchStatus, OnDataCallback, OnHealthCallback } from "./auto-fetch.js";
+export { PluginRegistry } from "./plugin-registry.js";
+export type { Plugin, PluginState } from "./plugin-registry.js";
+export { EncryptionService, AuditTrail } from "./security/index.js";
+export type { EncryptedData, AuditEntry } from "./security/index.js";
+export { MarkdownExporter } from "./memory/markdown-export.js";

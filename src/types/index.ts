@@ -170,3 +170,12 @@ export type { AgentConfig, AgentTask, AgentResult, OrchestrationPlan, AgentStatu
 
 // Streaming types
 export type { EventType, StreamEvent, StreamSession, StreamFilter } from "../core/streaming/types.js";
+
+// Event Bus types
+export type { AgentEvents, AgentEventName } from "../core/event-bus.js";
+
+// Observability types
+export type { Span, MetricSnapshot } from "../core/observability.js";
+
+// Auto-Fetch types
+export type { DataSource, FetchStatus, OnDataCallback, OnHealthCallback } from "../core/auto-fetch.js";

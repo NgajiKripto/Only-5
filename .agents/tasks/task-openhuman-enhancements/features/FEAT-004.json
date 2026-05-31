@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-004",
+  "type": "feat",
+  "description": "Feature-based architecture layer (thin barrel re-exports) and Integration Tests setup. Organizational refactoring plus comprehensive integration test infrastructure.",
+  "status": "completed",
+  "steps": [
+    "Step 1 - Create src/features/revenue/index.ts: Thin barrel file that re-exports from existing locations: BaseStrategy from ../../strategies/base.js, all strategy classes from ../../strategies/index.js, StrategyPriorityManager from ../../core/strategy-priority.js, FallbackSystem from ../../core/fallback.js, PluginRegistry from ../../core/plugin-registry.js. Include a module-level doc comment explaining this is the revenue feature boundary.",
+    "Step 2 - Create src/features/security/index.ts: Re-export EncryptionService and AuditTrail from ../../core/security/index.js, PromptGuard from ../../core/prompt-guard.js, PrivacyFilter from ../../core/memory/privacy.js. Include appropriate type re-exports.",
+    "Step 3 - Create src/features/monitoring/index.ts: Re-export HealthMonitor from ../../core/health-monitor.js, ConnectivityMonitor from ../../core/connectivity.js, MetricsCollector from ../../core/observability.js, DashboardServer from ../../dashboard/index.js, AutoFetchManager from ../../core/auto-fetch.js.",
+    "Step 4 - Create src/features/intelligence/index.ts: Re-export routedChat/routeModel from ../../core/llm-router.js, compressForLLM and related compression functions from ../../core/token-compression.js, PromptGuard from ../../core/prompt-guard.js, ContextManager from ../../core/context-manager.js.",
+    "Step 5 - Create src/features/index.ts: Top-level barrel that re-exports all 4 feature modules as namespaces: export * as Revenue from './revenue/index.js', export * as Security from './security/index.js', etc.",
+    "Step 6 - Create tests/integration/helpers.ts: Test helper utilities including: createMockMarketData() returning realistic mock price data, createMockAgent() returning a minimal AgentController mock, createTestDatabase() using better-sqlite3 in-memory DB (':memory:'), cleanupTestDatabase(). Follow patterns from existing test files.",
+    "Step 7 - Create tests/integration/agent-loop.test.ts: Integration test that simulates an agent evaluation cycle: create memory system with test DB, create mock strategies that return opportunities, run a single evaluation pass, verify that strategies are called, results are logged to memory. Use vi.fn() for LLM calls.",
+    "Step 8 - Create tests/integration/strategy-execution.test.ts: E2E test with mocked externals: create a BaseStrategy subclass, mock LLM responses, mock wallet balance check, run evaluate() and execute() in sequence, verify the full flow produces expected ExecutionResult.",
+    "Step 9 - Create tests/integration/memory-consolidation.test.ts: Test the full memory consolidation pipeline: store multiple WORKING tier memories, trigger consolidation, verify entries are promoted to EPISODIC tier, verify summaries are created. Use in-memory SQLite.",
+    "Step 10 - Verify all feature barrel files compile and the integration tests pass."
+  ],
+  "acceptance_criteria": [
+    "npx tsc --noEmit passes with no type errors",
+    "npx vitest run tests/integration/ passes all integration tests",
+    "src/features/revenue/index.ts correctly re-exports all revenue components",
+    "src/features/security/index.ts correctly re-exports all security components",
+    "src/features/monitoring/index.ts correctly re-exports all monitoring components",
+    "src/features/intelligence/index.ts correctly re-exports all intelligence components",
+    "Integration tests exercise real code paths with mocked external dependencies"
+  ],
+  "verification": [
+    "npx tsc --noEmit",
+    "npx vitest run tests/integration/"
+  ],
+  "blocked_reason": null,
+  "findings": "All 35 integration tests pass (16 pre-existing agent.test.ts + 4 agent-loop + 7 strategy-execution + 8 memory-consolidation). tsc --noEmit passes with zero errors. Feature barrel files are thin re-exports only (no circular deps). better-sqlite3 native addon needed manual node-gyp rebuild on Node 24 (pnpm rebuild alone was insufficient). The llm-router.ts does not export 'routeModel' - used classifyTask, getModelForTier, complexityToTier, getFallbackTier, compressContext, PromptInjectionError instead."
+}

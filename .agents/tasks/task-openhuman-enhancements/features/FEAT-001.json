@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-001",
+  "type": "feat",
+  "description": "Core infrastructure: Event Bus, Observability, and Auto-Fetch systems. These are foundational modules that other enhancements depend on.",
+  "status": "completed",
+  "steps": [
+    "Step 1 - Create src/core/event-bus.ts: Implement a typed event bus with: AgentEvents interface defining all event types (strategy.completed, risk.alert, memory.consolidated, fetch.completed, health.changed, revenue.earned, plugin.loaded, plugin.error), EventBus class with subscribe/unsubscribe/emit methods, optional event history buffer (configurable size, default 100), wildcard listener support (subscribe to '*' for all events), automatic audit logging via createLogger('event-bus'). Use Node.js EventEmitter as the internal mechanism but wrap it with type-safe generics. Export EventBus class and AgentEvents interface.",
+    "Step 2 - Create src/core/observability.ts: Implement MetricsCollector class with: counter(name, labels?) increment/get methods, gauge(name, labels?) set/get methods, histogram(name, value) record with p50/p95/p99 calculation, request tracing with Span interface (traceId: string, spanId: string, parentSpanId?: string, name: string, startTime: number, endTime?: number, duration?: number, metadata: Record<string,unknown>), startSpan/endSpan methods, strategy performance metrics (latency, success rate, revenue per strategy), toJSON() export method, toSummary() text export for Telegram, periodic snapshot method that logs a metrics summary. Use createLogger('observability') for logging.",
+    "Step 3 - Create src/core/auto-fetch.ts: Implement DataSource interface with: id, name, fetchFn: () => Promise<unknown>, intervalMs, priority (1-10), enabled. AutoFetchManager class with: registerSource/unregisterSource, start/stop methods that use setInterval for periodic fetching, status tracking per source (lastFetch, nextFetch, successCount, failCount, lastError), getStatus() returning all source statuses, integration point for memory system (onData callback), integration with HealthMonitor (markOk/markError per source). Built-in source definitions (not implementations - just the interface shape): MarketDataSource, BountyPlatformSource, GitHubIssuesSource. Use createLogger('auto-fetch').",
+    "Step 4 - Create tests/core/event-bus.test.ts: Test subscribe/emit, wildcard listeners, event history buffer, unsubscribe, emit with no listeners. Follow the pattern in tests/core/health-monitor.test.ts.",
+    "Step 5 - Create tests/core/observability.test.ts: Test counter increment/get, gauge set/get, histogram percentiles, span creation/completion, toJSON export, toSummary output.",
+    "Step 6 - Create tests/core/auto-fetch.test.ts: Test source registration, start/stop lifecycle, fetch success/failure tracking, status reporting. Use vi.useFakeTimers() for interval testing.",
+    "Step 7 - Update src/core/index.ts: Add exports for EventBus, MetricsCollector, AutoFetchManager and their types.",
+    "Step 8 - Update src/types/index.ts: Add re-exports for new types from event-bus and observability modules."
+  ],
+  "acceptance_criteria": [
+    "npx tsc --noEmit passes with no type errors",
+    "npx vitest run tests/core/event-bus.test.ts passes all tests",
+    "npx vitest run tests/core/observability.test.ts passes all tests",
+    "npx vitest run tests/core/auto-fetch.test.ts passes all tests",
+    "EventBus supports typed events, wildcard listeners, and history buffer",
+    "MetricsCollector supports counters, gauges, histograms, and spans",
+    "AutoFetchManager supports periodic data fetching with status tracking"
+  ],
+  "verification": [
+    "npx tsc --noEmit",
+    "npx vitest run tests/core/event-bus.test.ts",
+    "npx vitest run tests/core/observability.test.ts",
+    "npx vitest run tests/core/auto-fetch.test.ts"
+  ],
+  "blocked_reason": null,
+  "findings": "typescript 5.8.0 and zod 3.25.0 are not available in the npm registry; bumped to 5.8.3 and downgraded to 3.24.4 respectively. Pre-existing test failures exist in tests relying on better-sqlite3 (native addon not built via pnpm) and FallbackSystem/HybridSearch. The pnpm-lock.yaml was generated but not committed since the project originally uses npm. All 51 new tests pass (13 event-bus, 20 observability, 18 auto-fetch). tsc --noEmit passes with zero errors."
+}
