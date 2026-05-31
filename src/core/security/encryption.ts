@@ -90,6 +90,11 @@ export class EncryptionService {
 
 export class AuditTrail {
   private entries: AuditEntry[] = [];
+  private maxEntries: number;
+
+  constructor(options?: { maxEntries?: number }) {
+    this.maxEntries = options?.maxEntries ?? 10000;
+  }
 
   log(action: string, actor: string, metadata?: Record<string, unknown>): void {
     const entry: AuditEntry = {
@@ -99,6 +104,12 @@ export class AuditTrail {
       metadata,
     };
     this.entries.push(entry);
+
+    // Evict oldest entries when limit is exceeded (FIFO)
+    if (this.entries.length > this.maxEntries) {
+      this.entries.shift();
+    }
+
     logger.debug(`Audit: ${action} by ${actor}`);
   }
 

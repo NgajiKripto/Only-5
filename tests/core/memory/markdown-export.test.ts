@@ -63,9 +63,9 @@ describe("MarkdownExporter", () => {
   });
 
   describe("exportSingle", () => {
-    it("should create a markdown file in the correct tier directory", () => {
+    it("should create a markdown file in the correct tier directory", async () => {
       const entry = createMockEntry({ tier: MemoryTier.SEMANTIC });
-      exporter.exportSingle(entry, tmpDir);
+      await exporter.exportSingle(entry, tmpDir);
 
       const filePath = join(tmpDir, "semantic", "mem-001.md");
       expect(existsSync(filePath)).toBe(true);
@@ -76,46 +76,46 @@ describe("MarkdownExporter", () => {
       expect(content).toContain("This is a test memory entry.");
     });
 
-    it("should create working tier directory", () => {
+    it("should create working tier directory", async () => {
       const entry = createMockEntry({ id: "w1", tier: MemoryTier.WORKING });
-      exporter.exportSingle(entry, tmpDir);
+      await exporter.exportSingle(entry, tmpDir);
       expect(existsSync(join(tmpDir, "working", "w1.md"))).toBe(true);
     });
 
-    it("should create procedural tier directory", () => {
+    it("should create procedural tier directory", async () => {
       const entry = createMockEntry({ id: "p1", tier: MemoryTier.PROCEDURAL });
-      exporter.exportSingle(entry, tmpDir);
+      await exporter.exportSingle(entry, tmpDir);
       expect(existsSync(join(tmpDir, "procedural", "p1.md"))).toBe(true);
     });
   });
 
   describe("exportAll", () => {
-    it("should export multiple memories to correct directories", () => {
+    it("should export multiple memories to correct directories", async () => {
       const entries = [
         createMockEntry({ id: "e1", tier: MemoryTier.EPISODIC }),
         createMockEntry({ id: "s1", tier: MemoryTier.SEMANTIC }),
         createMockEntry({ id: "w1", tier: MemoryTier.WORKING }),
       ];
-      exporter.exportAll(entries, tmpDir);
+      await exporter.exportAll(entries, tmpDir);
 
       expect(existsSync(join(tmpDir, "episodic", "e1.md"))).toBe(true);
       expect(existsSync(join(tmpDir, "semantic", "s1.md"))).toBe(true);
       expect(existsSync(join(tmpDir, "working", "w1.md"))).toBe(true);
     });
 
-    it("should handle empty array", () => {
-      exporter.exportAll([], tmpDir);
+    it("should handle empty array", async () => {
+      await exporter.exportAll([], tmpDir);
       // Should not throw
     });
   });
 
   describe("generateIndex", () => {
-    it("should create an index.md with links to all memories", () => {
+    it("should create an index.md with links to all memories", async () => {
       const entries = [
         createMockEntry({ id: "e1", tier: MemoryTier.EPISODIC }),
         createMockEntry({ id: "s1", tier: MemoryTier.SEMANTIC, confidence: 0.9 }),
       ];
-      exporter.generateIndex(entries, tmpDir);
+      await exporter.generateIndex(entries, tmpDir);
 
       const indexPath = join(tmpDir, "index.md");
       expect(existsSync(indexPath)).toBe(true);
@@ -130,11 +130,11 @@ describe("MarkdownExporter", () => {
       expect(content).toContain("confidence: 0.9");
     });
 
-    it("should skip tiers with no entries", () => {
+    it("should skip tiers with no entries", async () => {
       const entries = [
         createMockEntry({ id: "e1", tier: MemoryTier.EPISODIC }),
       ];
-      exporter.generateIndex(entries, tmpDir);
+      await exporter.generateIndex(entries, tmpDir);
 
       const content = readFileSync(join(tmpDir, "index.md"), "utf8");
       expect(content).toContain("## EPISODIC");
@@ -145,33 +145,33 @@ describe("MarkdownExporter", () => {
   });
 
   describe("incrementalExport", () => {
-    it("should only export entries created after the given timestamp", () => {
+    it("should only export entries created after the given timestamp", async () => {
       const oldEntry = createMockEntry({ id: "old", createdAt: 1000 });
       const newEntry = createMockEntry({ id: "new", createdAt: 3000 });
       const entries = [oldEntry, newEntry];
 
-      exporter.incrementalExport(entries, tmpDir, 2000);
+      await exporter.incrementalExport(entries, tmpDir, 2000);
 
       expect(existsSync(join(tmpDir, "episodic", "new.md"))).toBe(true);
       expect(existsSync(join(tmpDir, "episodic", "old.md"))).toBe(false);
     });
 
-    it("should export nothing if all entries are before timestamp", () => {
+    it("should export nothing if all entries are before timestamp", async () => {
       const entries = [
         createMockEntry({ id: "e1", createdAt: 1000 }),
         createMockEntry({ id: "e2", createdAt: 2000 }),
       ];
-      exporter.incrementalExport(entries, tmpDir, 5000);
+      await exporter.incrementalExport(entries, tmpDir, 5000);
       expect(existsSync(join(tmpDir, "episodic", "e1.md"))).toBe(false);
       expect(existsSync(join(tmpDir, "episodic", "e2.md"))).toBe(false);
     });
 
-    it("should export all entries if timestamp is 0", () => {
+    it("should export all entries if timestamp is 0", async () => {
       const entries = [
         createMockEntry({ id: "e1", createdAt: 1000 }),
         createMockEntry({ id: "e2", createdAt: 2000 }),
       ];
-      exporter.incrementalExport(entries, tmpDir, 0);
+      await exporter.incrementalExport(entries, tmpDir, 0);
       expect(existsSync(join(tmpDir, "episodic", "e1.md"))).toBe(true);
       expect(existsSync(join(tmpDir, "episodic", "e2.md"))).toBe(true);
     });

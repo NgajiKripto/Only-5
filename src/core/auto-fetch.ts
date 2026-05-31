@@ -46,8 +46,10 @@ export class AutoFetchManager {
   private intervals: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private backoffMultipliers: Map<string, number> = new Map();
   private running = false;
-  private onData: OnDataCallback | null = null;
-  private onHealth: OnHealthCallback | null = null;
+  private onDataCallbacks: OnDataCallback[] = [];
+  private onHealthCallbacks: OnHealthCallback[] = [];
+  private onDataSetCount = 0;
+  private onHealthSetCount = 0;
 
   private static readonly BACKOFF_FACTOR = 2;
   private static readonly MAX_BACKOFF_MULTIPLIER = 5;
@@ -56,12 +58,30 @@ export class AutoFetchManager {
     logger.info("Auto-fetch manager initialized");
   }
 
+  /** @deprecated Use addOnData() instead. */
   setOnData(callback: OnDataCallback): void {
-    this.onData = callback;
+    this.onDataSetCount++;
+    if (this.onDataSetCount > 1) {
+      logger.warn("setOnData() called multiple times - use addOnData() for multi-consumer support");
+    }
+    this.onDataCallbacks.push(callback);
   }
 
+  /** @deprecated Use addOnHealth() instead. */
   setOnHealth(callback: OnHealthCallback): void {
-    this.onHealth = callback;
+    this.onHealthSetCount++;
+    if (this.onHealthSetCount > 1) {
+      logger.warn("setOnHealth() called multiple times - use addOnHealth() for multi-consumer support");
+    }
+    this.onHealthCallbacks.push(callback);
+  }
+
+  addOnData(callback: OnDataCallback): void {
+    this.onDataCallbacks.push(callback);
+  }
+
+  addOnHealth(callback: OnHealthCallback): void {
+    this.onHealthCallbacks.push(callback);
   }
 
   registerSource(source: DataSource): void {
@@ -191,12 +211,12 @@ export class AutoFetchManager {
       this.backoffMultipliers.set(source.id, 1);
       status.nextFetch = Date.now() + source.intervalMs;
 
-      if (this.onHealth) {
-        this.onHealth(source.id, true);
+      for (const cb of this.onHealthCallbacks) {
+        cb(source.id, true);
       }
 
-      if (this.onData) {
-        await this.onData(source.id, data);
+      for (const cb of this.onDataCallbacks) {
+        await cb(source.id, data);
       }
 
       logger.debug(`Fetch successful: ${source.name}`, { successCount: status.successCount });
@@ -215,8 +235,8 @@ export class AutoFetchManager {
       this.backoffMultipliers.set(source.id, newMultiplier);
       status.nextFetch = Date.now() + source.intervalMs * newMultiplier;
 
-      if (this.onHealth) {
-        this.onHealth(source.id, false, errorMessage);
+      for (const cb of this.onHealthCallbacks) {
+        cb(source.id, false, errorMessage);
       }
 
       logger.warn(`Fetch failed: ${source.name}`, { error: errorMessage, failCount: status.failCount, backoffMultiplier: newMultiplier });

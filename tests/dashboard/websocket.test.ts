@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { computeAcceptKey, encodeFrame, WebSocketServer } from "../../src/dashboard/websocket.js";
 
 describe("WebSocketServer", () => {
@@ -75,12 +75,11 @@ describe("WebSocketServer", () => {
 
     it("should remove destroyed sockets during broadcast", () => {
       const wsServer = new WebSocketServer();
-      // Access private clients set via any cast for testing
       const mockSocket = {
         destroyed: true,
         write: () => {},
       } as any;
-      (wsServer as any).clients.add(mockSocket);
+      (wsServer as any).clients.set(mockSocket, { socket: mockSocket, lastPong: Date.now() });
       expect(wsServer.getConnectionCount()).toBe(1);
 
       wsServer.broadcast({ type: "test" });
@@ -90,7 +89,7 @@ describe("WebSocketServer", () => {
   });
 
   describe("close", () => {
-    it("should destroy all client sockets and clear the set", () => {
+    it("should destroy all client sockets and clear the map", () => {
       const wsServer = new WebSocketServer();
       const destroyCalls: boolean[] = [];
       const mockSocket1 = {
@@ -103,13 +102,210 @@ describe("WebSocketServer", () => {
         destroy: () => { destroyCalls.push(true); },
         write: () => {},
       } as any;
-      (wsServer as any).clients.add(mockSocket1);
-      (wsServer as any).clients.add(mockSocket2);
+      (wsServer as any).clients.set(mockSocket1, { socket: mockSocket1, lastPong: Date.now() });
+      (wsServer as any).clients.set(mockSocket2, { socket: mockSocket2, lastPong: Date.now() });
       expect(wsServer.getConnectionCount()).toBe(2);
 
       wsServer.close();
       expect(wsServer.getConnectionCount()).toBe(0);
       expect(destroyCalls).toHaveLength(2);
+    });
+  });
+
+  describe("origin validation", () => {
+    it("should reject connections with non-localhost origin", () => {
+      const wsServer = new WebSocketServer();
+      const destroyed: boolean[] = [];
+      const mockSocket = {
+        destroyed: false,
+        destroy: () => { destroyed.push(true); },
+        write: () => {},
+        on: () => {},
+      } as any;
+
+      // Simulate handleUpgrade with invalid origin
+      (wsServer as any).handleUpgrade(
+        { headers: { "sec-websocket-key": "dGVzdA==", origin: "http://evil.com" } },
+        mockSocket,
+        Buffer.alloc(0)
+      );
+
+      expect(destroyed).toHaveLength(1);
+      expect(wsServer.getConnectionCount()).toBe(0);
+    });
+
+    it("should accept connections with localhost origin", () => {
+      const wsServer = new WebSocketServer();
+      const writtenData: any[] = [];
+      const mockSocket = {
+        destroyed: false,
+        destroy: () => {},
+        write: (data: any) => { writtenData.push(data); },
+        on: () => {},
+      } as any;
+
+      (wsServer as any).handleUpgrade(
+        { headers: { "sec-websocket-key": "dGVzdA==", origin: "http://localhost:3000" } },
+        mockSocket,
+        Buffer.alloc(0)
+      );
+
+      expect(wsServer.getConnectionCount()).toBe(1);
+    });
+
+    it("should accept connections with no origin header", () => {
+      const wsServer = new WebSocketServer();
+      const mockSocket = {
+        destroyed: false,
+        destroy: () => {},
+        write: () => {},
+        on: () => {},
+      } as any;
+
+      (wsServer as any).handleUpgrade(
+        { headers: { "sec-websocket-key": "dGVzdA==" } },
+        mockSocket,
+        Buffer.alloc(0)
+      );
+
+      expect(wsServer.getConnectionCount()).toBe(1);
+    });
+  });
+
+  describe("connection limit", () => {
+    it("should reject connections when at max capacity (50)", () => {
+      const wsServer = new WebSocketServer();
+
+      // Fill up to max
+      for (let i = 0; i < 50; i++) {
+        const mockSocket = {
+          destroyed: false,
+          destroy: () => {},
+          write: () => {},
+          on: () => {},
+        } as any;
+        (wsServer as any).clients.set(mockSocket, { socket: mockSocket, lastPong: Date.now() });
+      }
+      expect(wsServer.getConnectionCount()).toBe(50);
+
+      // Try to connect one more
+      const destroyed: boolean[] = [];
+      const extraSocket = {
+        destroyed: false,
+        destroy: () => { destroyed.push(true); },
+        write: () => {},
+        on: () => {},
+      } as any;
+
+      (wsServer as any).handleUpgrade(
+        { headers: { "sec-websocket-key": "dGVzdA==" } },
+        extraSocket,
+        Buffer.alloc(0)
+      );
+
+      expect(destroyed).toHaveLength(1);
+      expect(wsServer.getConnectionCount()).toBe(50);
+    });
+  });
+
+  describe("ping/pong", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("should respond to ping frames with pong", () => {
+      const wsServer = new WebSocketServer();
+      const writtenData: Buffer[] = [];
+      const mockSocket = {
+        destroyed: false,
+        destroy: () => {},
+        write: (data: any) => { writtenData.push(data); },
+        on: () => {},
+      } as any;
+
+      (wsServer as any).clients.set(mockSocket, { socket: mockSocket, lastPong: Date.now() });
+
+      // Simulate receiving a ping frame (opcode 0x09)
+      const pingFrame = Buffer.from([0x89, 0x00]);
+      (wsServer as any).handleFrame(mockSocket, pingFrame);
+
+      // Should have written a pong frame (opcode 0x0a)
+      const lastWrite = writtenData[writtenData.length - 1]!;
+      expect(lastWrite[0]).toBe(0x8a); // FIN + pong opcode
+    });
+
+    it("should update lastPong on receiving pong frame", () => {
+      const wsServer = new WebSocketServer();
+      const mockSocket = {
+        destroyed: false,
+        destroy: () => {},
+        write: () => {},
+        on: () => {},
+      } as any;
+
+      const info = { socket: mockSocket, lastPong: 1000 };
+      (wsServer as any).clients.set(mockSocket, info);
+
+      // Simulate receiving a pong frame (opcode 0x0a)
+      const pongFrame = Buffer.from([0x8a, 0x00]);
+      (wsServer as any).handleFrame(mockSocket, pongFrame);
+
+      expect(info.lastPong).toBeGreaterThan(1000);
+    });
+
+    it("should handle close frame by sending close response", () => {
+      const wsServer = new WebSocketServer();
+      const writtenData: Buffer[] = [];
+      let ended = false;
+      const mockSocket = {
+        destroyed: false,
+        destroy: () => {},
+        write: (data: any) => { writtenData.push(data); },
+        end: () => { ended = true; },
+        on: () => {},
+      } as any;
+
+      (wsServer as any).clients.set(mockSocket, { socket: mockSocket, lastPong: Date.now() });
+
+      // Simulate receiving a close frame (opcode 0x08)
+      const closeFrame = Buffer.from([0x88, 0x00]);
+      (wsServer as any).handleFrame(mockSocket, closeFrame);
+
+      // Should have sent a close frame back
+      const lastWrite = writtenData[writtenData.length - 1]!;
+      expect(lastWrite[0]).toBe(0x88); // FIN + close opcode
+      expect(ended).toBe(true);
+      expect(wsServer.getConnectionCount()).toBe(0);
+    });
+
+    it("should remove dead connections that miss pong timeout", () => {
+      const wsServer = new WebSocketServer();
+      const destroyed: boolean[] = [];
+      const mockSocket = {
+        destroyed: false,
+        destroy: () => { destroyed.push(true); mockSocket.destroyed = true; },
+        write: () => {},
+        on: () => {},
+      } as any;
+
+      // Set lastPong to way in the past (over 60s ago)
+      (wsServer as any).clients.set(mockSocket, { socket: mockSocket, lastPong: Date.now() - 70000 });
+
+      // Start the ping interval
+      (wsServer as any).startPingInterval();
+
+      // Advance past the ping interval (30s)
+      vi.advanceTimersByTime(30001);
+
+      expect(destroyed).toHaveLength(1);
+      expect(wsServer.getConnectionCount()).toBe(0);
+
+      // Cleanup
+      wsServer.close();
     });
   });
 });

@@ -1,6 +1,6 @@
 import { createLogger } from "./logger.js";
 import type { Strategy } from "../types/index.js";
-import { readdir } from "fs/promises";
+import { readdir, stat } from "fs/promises";
 import { join } from "path";
 import { pathToFileURL } from "url";
 
@@ -102,8 +102,34 @@ export class PluginRegistry {
     }
   }
 
+  /**
+   * Load plugins from a directory. This is a trust boundary: only load from directories
+   * that you control. World-writable directories are rejected to prevent untrusted code execution.
+   */
   async loadFromDirectory(dirPath: string): Promise<void> {
-    logger.info(`Loading plugins from directory: ${dirPath}`);
+    logger.warn(`Loading plugins from directory: ${dirPath} - ensure this directory is trusted`);
+
+    // Safety check: reject world-writable directories
+    try {
+      const dirStat = await stat(dirPath);
+      // Check if "others" have write permission (mode & 0o002)
+      if (dirStat.mode & 0o002) {
+        logger.error(`Refusing to load plugins from world-writable directory: ${dirPath}`);
+        throw new Error(`Directory "${dirPath}" is world-writable and cannot be trusted for plugin loading`);
+      }
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        logger.error(`Plugin directory does not exist: ${dirPath}`);
+        throw err;
+      }
+      // Re-throw our own error about world-writable
+      if (err instanceof Error && err.message.includes("world-writable")) {
+        throw err;
+      }
+      // For other stat errors, log and continue cautiously
+      logger.warn(`Could not verify directory permissions for ${dirPath}: ${(err as Error).message}`);
+    }
+
     const files = await readdir(dirPath);
     const jsFiles = files.filter((f) => f.endsWith(".js"));
 

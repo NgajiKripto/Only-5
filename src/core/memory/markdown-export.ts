@@ -1,5 +1,5 @@
 import { createLogger } from "../logger.js";
-import { writeFileSync, mkdirSync } from "fs";
+import { mkdir, writeFile, access } from "fs/promises";
 import { join } from "path";
 import type { MemoryEntry } from "./types.js";
 import { MemoryTier } from "./types.js";
@@ -33,27 +33,27 @@ export class MarkdownExporter {
     return lines.join("\n");
   }
 
-  exportSingle(entry: MemoryEntry, outputDir: string): void {
+  async exportSingle(entry: MemoryEntry, outputDir: string): Promise<void> {
     const dir = join(outputDir, tierToDir(entry.tier));
-    mkdirSync(dir, { recursive: true });
+    await mkdir(dir, { recursive: true });
 
     const frontmatter = this.generateFrontmatter(entry);
     const content = `${frontmatter}\n\n${entry.content}\n`;
     const filePath = join(dir, `${entry.id}.md`);
-    writeFileSync(filePath, content, "utf8");
+    await writeFile(filePath, content, "utf8");
     logger.debug(`Exported memory ${entry.id} to ${filePath}`);
   }
 
-  exportAll(memories: MemoryEntry[], outputDir: string): void {
-    mkdirSync(outputDir, { recursive: true });
+  async exportAll(memories: MemoryEntry[], outputDir: string): Promise<void> {
+    await mkdir(outputDir, { recursive: true });
     for (const entry of memories) {
-      this.exportSingle(entry, outputDir);
+      await this.exportSingle(entry, outputDir);
     }
     logger.info(`Exported ${memories.length} memories to ${outputDir}`);
   }
 
-  generateIndex(memories: MemoryEntry[], outputDir: string): void {
-    mkdirSync(outputDir, { recursive: true });
+  async generateIndex(memories: MemoryEntry[], outputDir: string): Promise<void> {
+    await mkdir(outputDir, { recursive: true });
 
     const lines: string[] = ["# Memory Index", ""];
 
@@ -79,20 +79,20 @@ export class MarkdownExporter {
     }
 
     const indexPath = join(outputDir, "index.md");
-    writeFileSync(indexPath, lines.join("\n"), "utf8");
+    await writeFile(indexPath, lines.join("\n"), "utf8");
     logger.info(`Generated index at ${indexPath}`);
   }
 
-  incrementalExport(
+  async incrementalExport(
     memories: MemoryEntry[],
     outputDir: string,
     lastExportTimestamp: number,
-  ): void {
+  ): Promise<void> {
     const newEntries = memories.filter(
       (m) => m.createdAt > lastExportTimestamp,
     );
     for (const entry of newEntries) {
-      this.exportSingle(entry, outputDir);
+      await this.exportSingle(entry, outputDir);
     }
     logger.info(
       `Incremental export: ${newEntries.length} new entries exported`,
