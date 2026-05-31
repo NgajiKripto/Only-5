@@ -1,4 +1,5 @@
 import type { AgentController } from "../core/agent.js";
+import type { DashboardServer } from "../dashboard/server.js";
 import { TelegramBot } from "./bot.js";
 import { AlertManager, AlertType } from "./alerts.js";
 import { registerStatusCommand } from "./commands/status.js";
@@ -9,6 +10,7 @@ import { registerControlCommands } from "./commands/control.js";
 import { registerLogsCommands } from "./commands/logs.js";
 import { registerPriorityCommands } from "./commands/priority.js";
 import { registerSecurityCommands } from "./commands/security.js";
+import { registerDashboardCommand } from "./commands/dashboard.js";
 import { createLogger } from "../core/logger.js";
 
 const logger = createLogger("telegram");
@@ -23,7 +25,8 @@ export interface TelegramSetupResult {
 
 export function setupTelegram(
   agent: AgentController,
-  authorizedChatIds?: number[]
+  authorizedChatIds?: number[],
+  dashboard?: DashboardServer | null
 ): TelegramSetupResult {
   const bot = new TelegramBot(agent, authorizedChatIds);
   const grammyBot = bot.getBot();
@@ -58,6 +61,7 @@ export function setupTelegram(
   registerLogsCommands(grammyBot, agent);
   registerPriorityCommands(grammyBot, agent);
   registerSecurityCommands(grammyBot, agent);
+  registerDashboardCommand(grammyBot, dashboard ?? null);
 
   // Create alert manager
   const alertManager = new AlertManager(bot);
