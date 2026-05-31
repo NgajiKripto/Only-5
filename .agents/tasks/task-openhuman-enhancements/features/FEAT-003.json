@@ -1,0 +1,33 @@
+{
+  "id": "FEAT-003",
+  "type": "feat",
+  "description": "Web Dashboard Server and Telegram Dashboard Command. HTTP server with WebSocket for real-time monitoring plus Telegram bot command integration.",
+  "status": "completed",
+  "steps": [
+    "Step 1 - Create src/dashboard/server.ts: Implement DashboardServer class using Node.js native http module (no Express - keep zero new deps). Features: configurable port (default 3000), enabled/disabled via constructor config, REST endpoints using simple URL pattern matching: GET /api/status (returns agent state + health snapshot), GET /api/metrics (returns MetricsCollector JSON), GET /api/strategies (returns strategy list with performance), GET /api/memory/stats (returns memory system statistics). CORS headers for local development. Use createLogger('dashboard').",
+    "Step 2 - Create src/dashboard/websocket.ts: Implement WebSocketServer using Node.js native approach - since we cannot add ws package, implement a basic WebSocket upgrade handler using the native http upgrade event and crypto for the Sec-WebSocket-Accept handshake. Support: connection management (track connected clients), broadcast(event) to all connected clients, handleUpgrade for the HTTP upgrade, frame encoding/decoding for text frames. This connects to the EventBus to relay events in real-time.",
+    "Step 3 - Create src/dashboard/static.ts: Implement a function that returns an embedded HTML string (single-page dashboard). The HTML should include: basic status display, metrics summary, strategy list, auto-refreshing via WebSocket connection or polling fallback. Keep it simple but functional - inline CSS and JS in the HTML string. Serve via GET / on the dashboard server.",
+    "Step 4 - Create src/dashboard/index.ts: Barrel file exporting DashboardServer and related types. Include a factory function createDashboard(config) that assembles server + websocket.",
+    "Step 5 - Create src/telegram/commands/dashboard.ts: Implement registerDashboardCommand following the pattern in src/telegram/commands/status.ts. The /dashboard command should reply with: dashboard URL (http://localhost:{port}), current server status (running/stopped), uptime, connected WebSocket clients count. Accept the DashboardServer instance as a parameter.",
+    "Step 6 - Update src/telegram/index.ts: Import and register the dashboard command alongside other commands. Add DashboardServer as an optional parameter to setupTelegram.",
+    "Step 7 - Create tests/dashboard/server.test.ts: Test endpoint routing (correct status codes, JSON responses), CORS headers, start/stop lifecycle. Use native http.request or fetch for testing.",
+    "Step 8 - Create tests/dashboard/websocket.test.ts: Test WebSocket handshake computation (the Sec-WebSocket-Accept header calculation), connection tracking, broadcast logic.",
+    "Step 9 - Create tests/telegram/commands/dashboard.test.ts: Test the dashboard command handler produces expected message format."
+  ],
+  "acceptance_criteria": [
+    "npx tsc --noEmit passes with no type errors",
+    "npx vitest run tests/dashboard/server.test.ts passes all tests",
+    "npx vitest run tests/dashboard/websocket.test.ts passes all tests",
+    "npx vitest run tests/telegram/commands/dashboard.test.ts passes all tests",
+    "Dashboard server starts on configurable port and responds to all 4 API endpoints",
+    "WebSocket upgrade handshake is correctly implemented per RFC 6455",
+    "/dashboard Telegram command returns URL and status information"
+  ],
+  "verification": [
+    "npx tsc --noEmit",
+    "npx vitest run tests/dashboard/",
+    "npx vitest run tests/telegram/commands/dashboard.test.ts"
+  ],
+  "blocked_reason": null,
+  "findings": "All 29 tests pass (13 server, 9 websocket, 7 telegram dashboard command). tsc --noEmit passes with zero errors. The RFC 6455 WebSocket GUID in the feature description was incorrect/truncated (258EAFA5-E914-47DA-95CA-5AB9DC65B5, 34 chars). The actual correct GUID is 258EAFA5-E914-47DA-95CA-C5AB0DC85B11 (36 chars), confirmed from the ws library bundled in vitest/vite dependencies. No new npm dependencies needed - only native Node.js http, crypto, and net modules used."
+}
